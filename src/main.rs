@@ -1,5 +1,7 @@
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use itertools::Itertools;
-use rayon::prelude::*;
 use std::time::Instant;
 
 const PAWN: i8 = 1;
@@ -11,8 +13,26 @@ const KING: i8 = 6;
 const EMPTY: i8 = 7;
 const OUTSIDE: i8 = 0;
 
+const NOTHING: i8 = 0;
+const CHECK: i8 = 1;
+const CHECKMATE: i8 = 2;
+const STALEMATE: i8 = 2;
+
 // convert from 8x8 to 12x10
 const BOARD_OFFSET: [i8; 64] = [
+  21, 22, 23, 24, 25, 26, 27, 28, //
+  31, 32, 33, 34, 35, 36, 37, 38, //
+  41, 42, 43, 44, 45, 46, 47, 48, //
+  51, 52, 53, 54, 55, 56, 57, 58, //
+  61, 62, 63, 64, 65, 66, 67, 68, //
+  71, 72, 73, 74, 75, 76, 77, 78, //
+  81, 82, 83, 84, 85, 86, 87, 88, //
+  91, 92, 93, 94, 95, 96, 97, 98, //
+];
+
+
+// TODO
+const BOARD_VALUES: [i8; 64] = [
   21, 22, 23, 24, 25, 26, 27, 28, //
   31, 32, 33, 34, 35, 36, 37, 38, //
   41, 42, 43, 44, 45, 46, 47, 48, //
@@ -97,7 +117,7 @@ impl PieceMove {
   }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 struct Board {
   pieces: [i8; 120],
 
@@ -182,8 +202,8 @@ impl Board {
   }
 
   fn from_fen(fen: &str) -> Board {
-    let a: Vec<&str> = fen.split(" ").collect();
-    let p: Vec<&str> = a[0].split("/").collect();
+    let a: Vec<&str> = fen.split(' ').collect();
+    let p: Vec<&str> = a[0].split('/').collect();
 
     let mut pieces = [OUTSIDE; 120];
 
@@ -315,7 +335,7 @@ impl Board {
     out
   }
 
-  fn generate_moves(&mut self) -> Vec<PieceMove> {
+  fn generate_moves(&mut self) -> (Vec<PieceMove>, i8) {
     // knight, bishop, rook, queen, king
 
     let can_slide: [bool; 5] = [false, true, true, true, false];
@@ -330,8 +350,9 @@ impl Board {
 
     let mut piece_moves: Vec<PieceMove> = Vec::new();
 
-    for i in 0..64 {
-      let from_index = BOARD_OFFSET[i];
+    let mut king_index = 0;
+
+    for &from_index in &BOARD_OFFSET {
       let piece = self.pieces[from_index as usize];
 
       if piece == EMPTY || piece == OUTSIDE {
@@ -339,6 +360,10 @@ impl Board {
       }
 
       if (self.white_to_move && piece > 0) || (!self.white_to_move && piece < 0) {
+        if piece.abs() == KING {
+          king_index = from_index;
+        }
+
         if piece.abs() != PAWN {
           for offset in 0..offset_counts[(piece.abs() - 2) as usize] {
             let mut to_index = from_index;
@@ -461,7 +486,7 @@ impl Board {
                   replace_piece_index,
                 ));
               } else {
-                piece_moves.push(PieceMove::new(from_index as usize, (from_index - 9) as usize, false));
+                piece_moves.push(PieceMove::new(from_index as usize, (from_index - 9) as usize, true));
               }
             }
 
@@ -512,7 +537,7 @@ impl Board {
                   replace_piece_index,
                 ));
               } else {
-                piece_moves.push(PieceMove::new(from_index as usize, (from_index - 11) as usize, false));
+                piece_moves.push(PieceMove::new(from_index as usize, (from_index - 11) as usize, true));
               }
             }
           } else {
@@ -614,7 +639,7 @@ impl Board {
                   replace_piece_index,
                 ));
               } else {
-                piece_moves.push(PieceMove::new(from_index as usize, (from_index + 9) as usize, false));
+                piece_moves.push(PieceMove::new(from_index as usize, (from_index + 9) as usize, true));
               }
             }
 
@@ -665,7 +690,7 @@ impl Board {
                   replace_piece_index,
                 ));
               } else {
-                piece_moves.push(PieceMove::new(from_index as usize, (from_index + 11) as usize, false));
+                piece_moves.push(PieceMove::new(from_index as usize, (from_index + 11) as usize, true));
               }
             }
           }
@@ -717,13 +742,34 @@ impl Board {
     }
 
     // filter out all illegal moves
-    // dbg!(piece_moves.iter().map(|x| x.to_string()).collect_vec());
-    piece_moves.into_iter().filter(|m| self.move_is_legal(m)).collect()
+    let legal_piece_moves = piece_moves.into_iter().filter(|m| self.move_is_legal(m)).collect_vec();
+
+    let king_is_safe = self.square_is_safe(king_index as usize);
+    let empty_vec = vec![];
+
+    // TODO: check for repetition of moves
+
+    if !king_is_safe && legal_piece_moves.is_empty() {
+      // king in check and no moves, so checkmate
+      return (empty_vec, CHECKMATE);
+    } else if self.halfmove_clock == 49 {
+      // no checkmate and the halfmove clock will reach 50, so stalemate
+      return (empty_vec, STALEMATE);
+    } else if king_is_safe && legal_piece_moves.is_empty() {
+      // king is in not in check and no moves, so stalemate
+      return (empty_vec, STALEMATE);
+    } else if !king_is_safe {
+      // king is in check and has moves, so check
+      return (legal_piece_moves, CHECK);
+    }
+
+    (legal_piece_moves, NOTHING)
   }
 
   fn move_is_legal(&mut self, piece_move: &PieceMove) -> bool {
     let from_piece = self.pieces[piece_move.from];
     let to_piece = self.pieces[piece_move.to];
+
     let mut replaced_piece_1: Option<i8> = None;
     let mut replaced_piece_2: Option<i8> = None;
 
@@ -747,13 +793,11 @@ impl Board {
 
     let mut is_legal = true;
 
-    for i in 0..64 {
-      let from_index = BOARD_OFFSET[i];
+    for &from_index in &BOARD_OFFSET {
       let piece = self.pieces[from_index as usize];
 
       if (piece == KING && self.white_to_move) || (piece == -KING && !self.white_to_move) {
         // your own king can't be in check after your move
-
         is_legal = self.square_is_safe(from_index as usize);
 
         break; // already found king
@@ -788,7 +832,7 @@ impl Board {
       [-10, -1, 1, 10, 0, 0, 0, 0],       // ROOK/QUEEN or maybe KING
     ];
 
-    // check pawn attacks
+    // check pawn attacks. except en passant
     if self.white_to_move {
       // check for black pawns
       if self.pieces[(square_index - 9) as usize] == -PAWN || self.pieces[(square_index - 11) as usize] == -PAWN {
@@ -925,92 +969,156 @@ impl Board {
   fn hash(&self) -> u64 {
     todo!()
   }
+
+  fn evaluate(&self) -> i32 {
+    let mut score: i32 = 0;
+
+    for &from_index in &BOARD_OFFSET {
+      let piece = self.pieces[from_index as usize];
+
+      if piece != EMPTY {
+        score += piece.signum() as i32 * {
+          match piece.abs() {
+            PAWN => 1,
+            KNIGHT => 3,
+            BISHOP => 3,
+            ROOK => 5,
+            QUEEN => 9,
+            _ => 0,
+          }
+        };
+      }
+    }
+
+    score
+  }
 }
 
 fn main() {
-  // let mut board = Board::default();
-  let mut board = Board::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
-  // board.move_piece(&PieceMove::new(
-  //   Board::square_to_index("e5"),
-  //   Board::square_to_index("d7"),
-  //   false,
-  // ));
-  // dbg!(board.generate_fen());
-  const DEPTH: usize = 6;
+  let current_time = Instant::now();
 
-  #[derive(Debug)]
-  struct State {
-    nodes: [u64; DEPTH + 1],
-    captures: [u64; DEPTH + 1],
-    checkmates: [u64; DEPTH + 1],
-  }
+  let mut board = Board::default();
+  // let board = Board::from_fen("1Q4n1/3bk3/5pqr/P3p2p/6p1/3P4/4PPPP/RN1QKBNR w KQ - 8 26");
+  // let board = Board::from_fen("6n1/Q2bkq2/5p1r/P3p2p/6p1/3P4/4PPPP/RN1QKBNR w KQ - 10 27");
+  let board = Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
 
-  let mut state = State {
-    nodes: [0; DEPTH + 1],
-    captures: [0; DEPTH + 1],
-    checkmates: [0; DEPTH + 1],
-  };
+  const DEPTH: usize = 4;
 
-  // fn recurse(board: Board, state: &mut State, depth: usize) -> usize {
-  //   state.nodes[depth] += 1;
+  fn recurse(board: Board, depth: usize) -> (i32, Option<PieceMove>) {
+    let mut board = board;
 
-  //   if depth == 0 {
-  //     return 1;
-  //   }
+    let (available_moves, result) = board.generate_moves();
 
-  //   let mut board = board;
-  //   let available_moves = board.generate_moves();
-
-  //   let mut sum = 0;
-
-  //   for available_move in available_moves {
-  //     let mut new_board = board.clone();
-  //     new_board.move_piece(&available_move);
-
-  //     let res = recurse(new_board, state, depth - 1);
-
-  //     if depth == DEPTH {
-  //       // if available_move.to == 24 {
-  //       //   // dbg!(available_move);
-  //       //   println!("\n\n{}\n\n{}\n\n", board.to_string(), new_board.to_string());
-  //       // }
-
-  //       state.things.push(format!(
-  //         "{}{}: {}",
-  //         Board::index_to_square(available_move.from),
-  //         Board::index_to_square(available_move.to),
-  //         res
-  //       ));
-  //     }
-
-  //     sum += res;
-  //   }
-
-  //   sum
-  // }
-
-  fn recurse(board: Board, state: &mut State, depth: usize) {
-    state.nodes[depth] += 1;
-
-    if depth == 0 {
-      return;
+    if result == CHECKMATE {
+      return if board.white_to_move {
+        (-1000, None)
+      } else {
+        (1000, None)
+      };
+    } else if result == STALEMATE {
+      return (0, None);
     }
 
-    let mut board = board;
-    let available_moves = board.generate_moves();
+    if depth == 0 {
+      let mut score = board.evaluate();
+
+      if result == CHECK {
+        score += if board.white_to_move { -1 } else { 1 };
+      }
+
+      return (score, None);
+    }
+
+    let mut min = 9999;
+    let mut min_move = None;
+
+    let mut max = -9999;
+    let mut max_move = None;
 
     for available_move in available_moves {
       let mut new_board = board.clone();
       new_board.move_piece(&available_move);
 
-      recurse(new_board, state, depth - 1);
+      let (score, _) = recurse(new_board, depth - 1);
+
+      if score < min {
+        min = score;
+        min_move = Some(available_move);
+      }
+
+      if score > max {
+        max = score;
+        max_move = Some(available_move);
+      }
+    }
+
+    if board.white_to_move {
+      (max, max_move)
+    } else {
+      (min, min_move)
     }
   }
 
-  let current_time = Instant::now();
+  let r = recurse(board, DEPTH);
 
-  recurse(board, &mut state, DEPTH);
+  println!(
+    "{}, {} -> {}. {}",
+    r.0,
+    Board::index_to_square(r.1.unwrap().from),
+    Board::index_to_square(r.1.unwrap().to),
+    r.1.unwrap().replace_piece_1.unwrap_or(0)
+  );
 
-  dbg!(state.nodes);
+  // #[derive(Debug)]
+  // struct State {
+  //   nodes: [u64; DEPTH + 1],
+  //   captures: [u64; DEPTH + 1],
+  //   checks: [u64; DEPTH + 1],
+  //   checkmates: [u64; DEPTH + 1],
+  // }
+
+  // let mut state = State {
+  //   nodes: [0; DEPTH + 1],
+  //   captures: [0; DEPTH + 1],
+  //   checks: [0; DEPTH + 1],
+  //   checkmates: [0; DEPTH + 1],
+  // };
+
+  // fn recurse(board: Board, state: &mut State, depth: usize) {
+  //   state.nodes[depth] += 1;
+
+  //   let mut board = board;
+  //   let (available_moves, result) = board.generate_moves();
+
+  //   if result == CHECK {
+  //     state.checks[depth] += 1;
+  //   } else if result == CHECKMATE {
+  //     state.checks[depth] += 1;
+  //     state.checkmates[depth] += 1;
+  //     return;
+  //   } else if result == STALEMATE {
+  //     return;
+  //   }
+
+  //   if depth == 0 {
+  //     return;
+  //   }
+
+  //   for available_move in available_moves {
+  //     if available_move.capture {
+  //       state.captures[depth - 1] += 1;
+  //     }
+
+  //     let mut new_board = board.clone();
+  //     new_board.move_piece(&available_move);
+
+  //     recurse(new_board, state, depth - 1);
+  //   }
+  // }
+
+  // recurse(board, &mut state, DEPTH);
+
+  // dbg!(state);
+
   println!("Time taken: {:?}", current_time.elapsed());
 }
