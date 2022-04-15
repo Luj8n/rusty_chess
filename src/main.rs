@@ -2,7 +2,9 @@
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use itertools::Itertools;
-use std::time::Instant;
+use std::{collections::HashMap, time::Instant};
+
+type BoardHash = (u64, u64, u64, u64, u64, u64, u64, u64);
 
 const PAWN: i8 = 1;
 const KNIGHT: i8 = 2;
@@ -18,6 +20,9 @@ const CHECK: i8 = 1;
 const CHECKMATE: i8 = 2;
 const STALEMATE: i8 = 2;
 
+const MAX: i32 = 99999;
+const MIN: i32 = -99999;
+
 // convert from 8x8 to 12x10
 const BOARD_OFFSET: [i8; 64] = [
   21, 22, 23, 24, 25, 26, 27, 28, //
@@ -29,7 +34,6 @@ const BOARD_OFFSET: [i8; 64] = [
   81, 82, 83, 84, 85, 86, 87, 88, //
   91, 92, 93, 94, 95, 96, 97, 98, //
 ];
-
 
 // TODO
 const BOARD_VALUES: [i8; 64] = [
@@ -742,7 +746,12 @@ impl Board {
     }
 
     // filter out all illegal moves
-    let legal_piece_moves = piece_moves.into_iter().filter(|m| self.move_is_legal(m)).collect_vec();
+    let legal_piece_moves = piece_moves
+      .into_iter()
+      .filter(|m| self.move_is_legal(m))
+      .sorted_by_key(|m| !m.capture)
+      .sorted_by_key(|m| !m.replace_piece_1.is_some())
+      .collect_vec();
 
     let king_is_safe = self.square_is_safe(king_index as usize);
     let empty_vec = vec![];
@@ -966,8 +975,77 @@ impl Board {
     }
   }
 
-  fn hash(&self) -> u64 {
-    todo!()
+  fn hash(&self) -> BoardHash {
+    let mut pawns_hash = 0_u64;
+    let mut knights_hash = 0_u64;
+    let mut bishops_hash = 0_u64;
+    let mut rooks_hash = 0_u64;
+    let mut queens_hash = 0_u64;
+    let mut kings_hash = 0_u64;
+    let mut colors_hash = 0_u64;
+    let mut misc = 0_u64;
+
+    let mut place = 1;
+
+    for &from_index in &BOARD_OFFSET {
+      let piece = self.pieces[from_index as usize];
+      if piece != EMPTY {
+        if piece > 0 {
+          colors_hash |= place;
+        }
+        if piece.abs() == PAWN {
+          pawns_hash |= place;
+        } else if piece.abs() == KNIGHT {
+          knights_hash |= place;
+        } else if piece.abs() == BISHOP {
+          bishops_hash |= place;
+        } else if piece.abs() == ROOK {
+          rooks_hash |= place;
+        } else if piece.abs() == QUEEN {
+          queens_hash |= place;
+        } else if piece.abs() == KING {
+          kings_hash |= place;
+        }
+      }
+      place <<= 1;
+    }
+
+    if self.white_king_castle {
+      misc |= 1;
+    }
+    if self.white_queen_castle {
+      misc |= 1 << 1;
+    }
+    if self.black_king_castle {
+      misc |= 1 << 2;
+    }
+    if self.black_queen_castle {
+      misc |= 1 << 3;
+    }
+    if self.white_to_move {
+      misc |= 1 << 4;
+    }
+    if self.halfmove_clock > 40 {
+      misc |= 1 << 5;
+    }
+    if let Some(en_passant_index) = self.en_passant_index {
+      let x = en_passant_index % 10;
+      let y = en_passant_index / 10;
+      let index = (y - 2) * 8 + (x - 1);
+
+      misc |= 1 << index;
+    }
+
+    (
+      pawns_hash,
+      knights_hash,
+      bishops_hash,
+      rooks_hash,
+      queens_hash,
+      kings_hash,
+      colors_hash,
+      misc,
+    )
   }
 
   fn evaluate(&self) -> i32 {
@@ -997,19 +1075,109 @@ impl Board {
 fn main() {
   let current_time = Instant::now();
 
-  let mut board = Board::default();
-  // let board = Board::from_fen("1Q4n1/3bk3/5pqr/P3p2p/6p1/3P4/4PPPP/RN1QKBNR w KQ - 8 26");
+  // let board = Board::default();
+  // let board = Board::from_fen("2Q5/5q1r/3Q1pkn/P3p2p/6p1/2NP4/4PPPP/2KR1BNR w - - 3 33");
   // let board = Board::from_fen("6n1/Q2bkq2/5p1r/P3p2p/6p1/3P4/4PPPP/RN1QKBNR w KQ - 10 27");
-  let board = Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
+  // let board = Board::from_fen("r3k2r/p1ppqpb1/1n2Pnp1/4N3/1p2P3/2N2Q1p/PPPBbPPP/R3K2R w KQkq - 0 2");
+  let board = Board::from_fen("5BN1/8/8/1p6/1N6/kP6/2K5/8 w - - 0 2"); // ??????? probably found bug. after the recommended move it's stalemate, even though it says its checkmate
 
-  const DEPTH: usize = 4;
+  let mut hashmap: HashMap<BoardHash, i32> = HashMap::new();
 
-  fn recurse(board: Board, depth: usize) -> (i32, Option<PieceMove>) {
+  const DEPTH: i32 = 10;
+
+  // idk, something stupid
+  // fn capture_search(board: Board, hashmap: &mut HashMap<BoardHash, i32>, alpha: i32, beta: i32) -> i32 {
+  //   let mut board = board;
+  //   let mut alpha = alpha;
+  //   let mut beta = beta;
+
+  //   let board_eval = board.evaluate();
+
+  //   if board.white_to_move {
+  //     if board_eval >= alpha {
+  //       return alpha;
+  //     }
+  //     if beta < board_eval {
+  //       beta = board_eval;
+  //     }
+  //   } else {
+  //     if board_eval >= beta {
+  //       return beta;
+  //     }
+  //     if alpha < board_eval {
+  //       alpha = board_eval;
+  //     }
+  //   }
+
+  //   let (mut available_moves, result) = board.generate_moves();
+  //   available_moves = available_moves.into_iter().filter(|m| m.capture).collect();
+
+  //   if result == CHECKMATE {
+  //     return if board.white_to_move { -1000 } else { 1000 };
+  //   } else if result == STALEMATE {
+  //     return 0;
+  //   }
+
+  //   if board.white_to_move {
+  //     for available_move in available_moves {
+  //       let mut new_board = board.clone();
+  //       new_board.move_piece(&available_move);
+
+  //       let eval = capture_search(new_board, hashmap, alpha, beta);
+
+  //       if eval >= alpha {
+  //         return alpha;
+  //       }
+  //       if eval > beta {
+  //         beta = eval;
+  //       }
+  //     }
+
+  //     return beta;
+  //   } else {
+  //     for available_move in available_moves {
+  //       let mut new_board = board.clone();
+  //       new_board.move_piece(&available_move);
+
+  //       let eval = capture_search(new_board, hashmap, alpha, beta);
+
+  //       if eval >= beta {
+  //         return beta;
+  //       }
+  //       if eval > alpha {
+  //         alpha = eval;
+  //       }
+  //     }
+
+  //     return alpha;
+  //   }
+  // }
+
+  fn search(
+    board: Board,
+    depth: i32,
+    hashmap: &mut HashMap<BoardHash, i32>,
+    alpha: i32,
+    beta: i32,
+  ) -> (i32, Option<PieceMove>) {
     let mut board = board;
+    let mut alpha = alpha;
+    let mut beta = beta;
 
-    let (available_moves, result) = board.generate_moves();
+    let board_hash = board.hash();
+    if let Some(v) = hashmap.get(&board_hash) {
+      return (*v, None);
+    }
+
+    let (mut available_moves, result) = board.generate_moves();
+    // if depth < 0 {
+    //   available_moves = available_moves.into_iter().filter(|m| m.capture).collect();
+    // }
 
     if result == CHECKMATE {
+      // if !board.white_to_move {
+      //   dbg!("ree");
+      // }
       return if board.white_to_move {
         (-1000, None)
       } else {
@@ -1020,53 +1188,76 @@ fn main() {
     }
 
     if depth == 0 {
-      let mut score = board.evaluate();
-
-      if result == CHECK {
-        score += if board.white_to_move { -1 } else { 1 };
-      }
-
-      return (score, None);
+      return (board.evaluate(), None);
     }
 
-    let mut min = 9999;
-    let mut min_move = None;
+    // if available_moves.is_empty() || depth < -5 {
+    //   return (board.evaluate(), None);
 
-    let mut max = -9999;
-    let mut max_move = None;
-
-    for available_move in available_moves {
-      let mut new_board = board.clone();
-      new_board.move_piece(&available_move);
-
-      let (score, _) = recurse(new_board, depth - 1);
-
-      if score < min {
-        min = score;
-        min_move = Some(available_move);
-      }
-
-      if score > max {
-        max = score;
-        max_move = Some(available_move);
-      }
-    }
+    //   // return (capture_search(board, hashmap, alpha, beta), None);
+    // }
 
     if board.white_to_move {
-      (max, max_move)
+      let mut max_eval = MIN;
+      let mut max_eval_move = None;
+
+      for available_move in available_moves {
+        let mut new_board = board.clone();
+        new_board.move_piece(&available_move);
+
+        let (eval, _) = search(new_board, depth - 1, hashmap, alpha, beta);
+
+        if eval > max_eval {
+          max_eval = eval;
+          max_eval_move = Some(available_move);
+        }
+        if max_eval > alpha {
+          alpha = eval;
+        }
+        if beta <= alpha {
+          break;
+        }
+      }
+
+      hashmap.insert(board_hash, max_eval);
+
+      return (max_eval, max_eval_move);
     } else {
-      (min, min_move)
+      let mut min_eval = MAX;
+      let mut min_eval_move = None;
+
+      for available_move in available_moves {
+        let mut new_board = board.clone();
+        new_board.move_piece(&available_move);
+
+        let (eval, _) = search(new_board, depth - 1, hashmap, alpha, beta);
+
+        if eval < min_eval {
+          min_eval = eval;
+          min_eval_move = Some(available_move);
+        }
+        if min_eval < beta {
+          beta = eval;
+        }
+        if beta <= alpha {
+          break;
+        }
+      }
+
+      hashmap.insert(board_hash, min_eval);
+
+      return (min_eval, min_eval_move);
     }
   }
 
-  let r = recurse(board, DEPTH);
+  let r = search(board, DEPTH, &mut hashmap, MIN, MAX);
 
   println!(
-    "{}, {} -> {}. {}",
+    "{}, {} | {} -> {}",
     r.0,
+    r.1.unwrap().replace_piece_1.unwrap_or(0),
     Board::index_to_square(r.1.unwrap().from),
     Board::index_to_square(r.1.unwrap().to),
-    r.1.unwrap().replace_piece_1.unwrap_or(0)
   );
 
   // #[derive(Debug)]
