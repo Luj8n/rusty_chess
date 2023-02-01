@@ -1,6 +1,10 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+// TODOs:
+// https://www.chessprogramming.org/Perft
+// rewrite using bitboards
+
 use itertools::Itertools;
 use std::{collections::HashMap, time::Instant};
 
@@ -761,10 +765,9 @@ impl Board {
     if !king_is_safe && legal_piece_moves.is_empty() {
       // king in check and no moves, so checkmate
       return (empty_vec, CHECKMATE);
-    } else if self.halfmove_clock == 49 {
+    } else if self.halfmove_clock == 49 || (king_is_safe && legal_piece_moves.is_empty()) {
       // no checkmate and the halfmove clock will reach 50, so stalemate
-      return (empty_vec, STALEMATE);
-    } else if king_is_safe && legal_piece_moves.is_empty() {
+      // or
       // king is in not in check and no moves, so stalemate
       return (empty_vec, STALEMATE);
     } else if !king_is_safe {
@@ -1075,15 +1078,15 @@ impl Board {
 fn main() {
   let current_time = Instant::now();
 
-  // let board = Board::default();
+  let board = Board::default();
   // let board = Board::from_fen("2Q5/5q1r/3Q1pkn/P3p2p/6p1/2NP4/4PPPP/2KR1BNR w - - 3 33");
   // let board = Board::from_fen("6n1/Q2bkq2/5p1r/P3p2p/6p1/3P4/4PPPP/RN1QKBNR w KQ - 10 27");
   // let board = Board::from_fen("r3k2r/p1ppqpb1/1n2Pnp1/4N3/1p2P3/2N2Q1p/PPPBbPPP/R3K2R w KQkq - 0 2");
-  let board = Board::from_fen("5BN1/8/8/1p6/1N6/kP6/2K5/8 w - - 0 2"); // ??????? probably found bug. after the recommended move it's stalemate, even though it says its checkmate
+  // let board = Board::from_fen("5BN1/8/8/1p6/1N6/kP6/2K5/8 w - - 0 2"); // ??????? probably found bug. after the recommended move it's stalemate, even though it says its checkmate
 
   let mut hashmap: HashMap<BoardHash, i32> = HashMap::new();
 
-  const DEPTH: i32 = 10;
+  const DEPTH: i32 = 8;
 
   // idk, something stupid
   // fn capture_search(board: Board, hashmap: &mut HashMap<BoardHash, i32>, alpha: i32, beta: i32) -> i32 {
