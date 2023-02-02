@@ -2,7 +2,7 @@
 // static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 mod old;
-mod traits;
+mod board;
 
 fn main() {
   //
