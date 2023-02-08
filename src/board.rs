@@ -7,6 +7,10 @@ const KING: i8 = 6;
 const EMPTY: i8 = 7;
 const OUTSIDE: i8 = 0;
 
+// TODO: check if changing all usizes to i8 and then casting to usize increases performance
+// TODO: check if storing information more densely (storing multiple things inside an i8) increases performance
+// TODO: check if make-unmake is faster than copy-make
+
 // Indices of the 10x12 board. Displayed as an 8x8 board.
 const BOARD_INDICES: [i8; 64] = [
   21, 22, 23, 24, 25, 26, 27, 28, //
@@ -96,6 +100,8 @@ enum Move {
   EnPassant {
     from: usize,
     to: usize,
+    captured_index: usize,
+    captured_piece: i8,
   },
   Promotion {
     from: usize,
@@ -132,8 +138,13 @@ impl Move {
     Move::DoublePawnPush { from, to }
   }
 
-  fn en_passant(from: usize, to: usize) -> Move {
-    Move::EnPassant { from, to }
+  fn en_passant(from: usize, to: usize, captured_index: usize, captured_piece: i8) -> Move {
+    Move::EnPassant {
+      from,
+      to,
+      captured_index,
+      captured_piece,
+    }
   }
 
   fn promotion(from: usize, to: usize, selected_piece: i8) -> Move {
@@ -158,19 +169,51 @@ impl Move {
   }
 
   fn to_fen(&self) -> String {
-    todo!()
+    match *self {
+      Move::Normal { from, to }
+      | Move::Capture {
+        from,
+        to,
+        captured_piece: _,
+      }
+      | Move::PawnPush { from, to }
+      | Move::DoublePawnPush { from, to }
+      | Move::EnPassant {
+        from,
+        to,
+        captured_index: _,
+        captured_piece: _,
+      } => index_to_square(from) + &index_to_square(to),
+      Move::Promotion {
+        from,
+        to,
+        selected_piece,
+      }
+      | Move::PromotionWithCapture {
+        from,
+        to,
+        selected_piece,
+        captured_piece: _,
+      } => {
+        index_to_square(from)
+          + &index_to_square(to)
+          + match selected_piece.abs() {
+            KNIGHT => "n",
+            BISHOP => "b",
+            ROOK => "r",
+            QUEEN => "q",
+            _ => panic!("This shouldn't panic"),
+          }
+      }
+      Move::Castling(CastlingSide::WhiteKing) => "e1g1".to_string(),
+      Move::Castling(CastlingSide::WhiteQueen) => "e1c1".to_string(),
+      Move::Castling(CastlingSide::BlackKing) => "e8g8".to_string(),
+      Move::Castling(CastlingSide::BlackQueen) => "e8c8".to_string(),
+    }
   }
 }
 
-// Used for the make-unmake approach
-#[derive(Clone, Debug)]
-struct UndoMove {
-  // TODO: see if u8 with casting is faster (especially with the copy-make approach)
-  piece_move: Move,
-
-  // Stores board information before the move
-  meta: BoardMeta,
-}
+enum MoveResult {}
 
 // Stores additional board
 #[derive(Clone, Debug)]
@@ -205,7 +248,7 @@ struct Board {
   pieces: [i8; 120],
 
   // TODO
-  undo_list: Vec<UndoMove>,
+  undo_list: Vec<BoardMeta>,
 
   // Whether it's white's turn to move
   side_to_move: Color,
@@ -322,18 +365,18 @@ impl Board {
 
   // TODO: maybe don't return a vector but instead mutate it
   // Returns pseudo legal moves for a king from a specified square
-  fn king_moves(&self, from: usize, color: Color) -> Vec<Move> {
+  fn king_moves(&self, index: usize, color: Color) -> Vec<Move> {
     let mut piece_moves: Vec<Move> = Vec::with_capacity(8);
 
     let positions: [usize; 8] = [
-      from - 11,
-      from - 10,
-      from - 9,
-      from - 1,
-      from + 1,
-      from + 9,
-      from + 10,
-      from + 11,
+      index - 11,
+      index - 10,
+      index - 9,
+      index - 1,
+      index + 1,
+      index + 9,
+      index + 10,
+      index + 11,
     ];
 
     for position in positions {
@@ -342,27 +385,27 @@ impl Board {
         continue;
       }
       if square == EMPTY {
-        piece_moves.push(Move::normal(from, position));
+        piece_moves.push(Move::normal(index, position));
       } else if (square < 0 && matches!(color, Color::White)) || (square > 0 && matches!(color, Color::Black)) {
-        piece_moves.push(Move::capture(from, position, square));
+        piece_moves.push(Move::capture(index, position, square));
       }
     }
 
     piece_moves
   }
 
-  fn knight_moves(&self, from: usize, color: Color) -> Vec<Move> {
+  fn knight_moves(&self, index: usize, color: Color) -> Vec<Move> {
     let mut piece_moves: Vec<Move> = Vec::with_capacity(8);
 
     let positions: [usize; 8] = [
-      from - 21,
-      from - 19,
-      from - 12,
-      from - 8,
-      from + 8,
-      from + 12,
-      from + 19,
-      from + 21,
+      index - 21,
+      index - 19,
+      index - 12,
+      index - 8,
+      index + 8,
+      index + 12,
+      index + 19,
+      index + 21,
     ];
 
     for position in positions {
@@ -371,22 +414,22 @@ impl Board {
         continue;
       }
       if square == EMPTY {
-        piece_moves.push(Move::normal(from, position));
+        piece_moves.push(Move::normal(index, position));
       } else if (square < 0 && matches!(color, Color::White)) || (square > 0 && matches!(color, Color::Black)) {
-        piece_moves.push(Move::capture(from, position, square));
+        piece_moves.push(Move::capture(index, position, square));
       }
     }
 
     piece_moves
   }
 
-  fn bishop_moves(&self, from: usize, color: Color) -> Vec<Move> {
+  fn bishop_moves(&self, index: usize, color: Color) -> Vec<Move> {
     let mut piece_moves: Vec<Move> = Vec::with_capacity(13);
 
     let directions: [i8; 4] = [-11, -9, 9, 11];
 
     for direction in directions {
-      let mut position: i8 = from as i8;
+      let mut position: i8 = index as i8;
 
       loop {
         position += direction;
@@ -398,10 +441,10 @@ impl Board {
         }
 
         if square == EMPTY {
-          piece_moves.push(Move::normal(from, position as usize));
+          piece_moves.push(Move::normal(index, position as usize));
         } else {
           if (square < 0 && matches!(color, Color::White)) || (square > 0 && matches!(color, Color::Black)) {
-            piece_moves.push(Move::capture(from, position as usize, square));
+            piece_moves.push(Move::capture(index, position as usize, square));
           }
 
           break;
@@ -412,13 +455,13 @@ impl Board {
     piece_moves
   }
 
-  fn rook_moves(&self, from: usize, color: Color) -> Vec<Move> {
+  fn rook_moves(&self, index: usize, color: Color) -> Vec<Move> {
     let mut piece_moves: Vec<Move> = Vec::with_capacity(14);
 
     let directions: [i8; 4] = [-10, -1, 1, 10];
 
     for direction in directions {
-      let mut position: i8 = from as i8;
+      let mut position: i8 = index as i8;
 
       loop {
         position += direction;
@@ -430,10 +473,10 @@ impl Board {
         }
 
         if square == EMPTY {
-          piece_moves.push(Move::normal(from, position as usize));
+          piece_moves.push(Move::normal(index, position as usize));
         } else {
           if (square < 0 && matches!(color, Color::White)) || (square > 0 && matches!(color, Color::Black)) {
-            piece_moves.push(Move::capture(from, position as usize, square));
+            piece_moves.push(Move::capture(index, position as usize, square));
           }
 
           break;
@@ -444,13 +487,13 @@ impl Board {
     piece_moves
   }
 
-  fn queen_moves(&self, from: usize, color: Color) -> Vec<Move> {
+  fn queen_moves(&self, index: usize, color: Color) -> Vec<Move> {
     let mut piece_moves: Vec<Move> = Vec::with_capacity(27);
 
     let directions: [i8; 8] = [-11, -10, -9, -1, 1, 9, 10, 11];
 
     for direction in directions {
-      let mut position: i8 = from as i8;
+      let mut position: i8 = index as i8;
 
       loop {
         position += direction;
@@ -462,10 +505,10 @@ impl Board {
         }
 
         if square == EMPTY {
-          piece_moves.push(Move::normal(from, position as usize));
+          piece_moves.push(Move::normal(index, position as usize));
         } else {
           if (square < 0 && matches!(color, Color::White)) || (square > 0 && matches!(color, Color::Black)) {
-            piece_moves.push(Move::capture(from, position as usize, square));
+            piece_moves.push(Move::capture(index, position as usize, square));
           }
 
           break;
@@ -476,134 +519,140 @@ impl Board {
     piece_moves
   }
 
-  fn pawn_moves(&self, from: usize, color: Color) -> Vec<Move> {
+  fn pawn_moves(&self, index: usize, color: Color) -> Vec<Move> {
     let mut piece_moves: Vec<Move> = Vec::with_capacity(12);
 
-    let in_second_rank = (81..=88).contains(&from);
-    let in_seventh_rank = (31..=38).contains(&from);
+    let in_second_rank = (81..=88).contains(&index);
+    let in_seventh_rank = (31..=38).contains(&index);
+
+    let one_left = index - 1;
+    let one_left_square = self.pieces[one_left];
+
+    let one_right = index + 1;
+    let one_right_square = self.pieces[one_right];
 
     if matches!(color, Color::White) {
-      let one_up = from - 10;
+      let one_up = index - 10;
       let one_up_square = self.pieces[one_up];
 
-      let up_left = from - 11;
+      let up_left = index - 11;
       let up_left_square = self.pieces[up_left];
 
-      let up_right = from - 9;
+      let up_right = index - 9;
       let up_right_square = self.pieces[up_right];
 
       if self.meta.en_passant_index == Some(up_left) {
-        piece_moves.push(Move::en_passant(from, up_left));
+        piece_moves.push(Move::en_passant(index, up_left, one_left, one_left_square));
       }
 
       if self.meta.en_passant_index == Some(up_right) {
-        piece_moves.push(Move::en_passant(from, up_right));
+        piece_moves.push(Move::en_passant(index, up_right, one_right, one_right_square));
       }
 
       if in_seventh_rank {
         if one_up_square == EMPTY {
-          piece_moves.push(Move::promotion(from, one_up, QUEEN));
-          piece_moves.push(Move::promotion(from, one_up, KNIGHT));
-          piece_moves.push(Move::promotion(from, one_up, ROOK));
-          piece_moves.push(Move::promotion(from, one_up, BISHOP));
+          piece_moves.push(Move::promotion(index, one_up, QUEEN));
+          piece_moves.push(Move::promotion(index, one_up, KNIGHT));
+          piece_moves.push(Move::promotion(index, one_up, ROOK));
+          piece_moves.push(Move::promotion(index, one_up, BISHOP));
         }
 
         if let Some(Color::Black) = get_color(up_left_square) {
-          piece_moves.push(Move::promotion_with_capture(from, up_left, QUEEN, up_left_square));
-          piece_moves.push(Move::promotion_with_capture(from, up_left, KNIGHT, up_left_square));
-          piece_moves.push(Move::promotion_with_capture(from, up_left, ROOK, up_left_square));
-          piece_moves.push(Move::promotion_with_capture(from, up_left, BISHOP, up_left_square));
+          piece_moves.push(Move::promotion_with_capture(index, up_left, QUEEN, up_left_square));
+          piece_moves.push(Move::promotion_with_capture(index, up_left, KNIGHT, up_left_square));
+          piece_moves.push(Move::promotion_with_capture(index, up_left, ROOK, up_left_square));
+          piece_moves.push(Move::promotion_with_capture(index, up_left, BISHOP, up_left_square));
         }
 
         if let Some(Color::Black) = get_color(up_right_square) {
-          piece_moves.push(Move::promotion_with_capture(from, up_right, QUEEN, up_right_square));
-          piece_moves.push(Move::promotion_with_capture(from, up_right, KNIGHT, up_right_square));
-          piece_moves.push(Move::promotion_with_capture(from, up_right, ROOK, up_right_square));
-          piece_moves.push(Move::promotion_with_capture(from, up_right, BISHOP, up_right_square));
+          piece_moves.push(Move::promotion_with_capture(index, up_right, QUEEN, up_right_square));
+          piece_moves.push(Move::promotion_with_capture(index, up_right, KNIGHT, up_right_square));
+          piece_moves.push(Move::promotion_with_capture(index, up_right, ROOK, up_right_square));
+          piece_moves.push(Move::promotion_with_capture(index, up_right, BISHOP, up_right_square));
         }
       } else {
         if one_up_square == EMPTY {
-          piece_moves.push(Move::pawn_push(from, one_up));
+          piece_moves.push(Move::pawn_push(index, one_up));
 
-          let in_first_row = (81..=88).contains(&from);
+          let in_first_row = (81..=88).contains(&index);
 
           if in_first_row {
-            let two_up = from - 20;
+            let two_up = index - 20;
             let two_up_square = self.pieces[two_up];
 
             if two_up_square == EMPTY {
-              piece_moves.push(Move::double_pawn_push(from, two_up));
+              piece_moves.push(Move::double_pawn_push(index, two_up));
             }
           }
         }
 
         if let Some(Color::Black) = get_color(up_left_square) {
-          piece_moves.push(Move::capture(from, up_left, up_left_square));
+          piece_moves.push(Move::capture(index, up_left, up_left_square));
         }
 
         if let Some(Color::Black) = get_color(up_right_square) {
-          piece_moves.push(Move::capture(from, up_right, up_right_square));
+          piece_moves.push(Move::capture(index, up_right, up_right_square));
         }
       }
     } else {
-      let one_down = from + 10;
+      let one_down = index + 10;
       let one_down_square = self.pieces[one_down];
 
-      let down_left = from + 9;
+      let down_left = index + 9;
       let down_left_square = self.pieces[down_left];
 
-      let down_right = from + 11;
+      let down_right = index + 11;
       let down_right_square = self.pieces[down_right];
 
       if self.meta.en_passant_index == Some(down_left) {
-        piece_moves.push(Move::en_passant(from, down_left));
+        piece_moves.push(Move::en_passant(index, down_left, one_left, one_left_square));
       }
 
       if self.meta.en_passant_index == Some(down_right) {
-        piece_moves.push(Move::en_passant(from, down_right));
+        piece_moves.push(Move::en_passant(index, down_right, one_right, one_right_square));
       }
 
       if in_second_rank {
         if one_down_square == EMPTY {
-          piece_moves.push(Move::promotion(from, one_down, -QUEEN));
-          piece_moves.push(Move::promotion(from, one_down, -KNIGHT));
-          piece_moves.push(Move::promotion(from, one_down, -ROOK));
-          piece_moves.push(Move::promotion(from, one_down, -BISHOP));
+          piece_moves.push(Move::promotion(index, one_down, -QUEEN));
+          piece_moves.push(Move::promotion(index, one_down, -KNIGHT));
+          piece_moves.push(Move::promotion(index, one_down, -ROOK));
+          piece_moves.push(Move::promotion(index, one_down, -BISHOP));
         }
 
         if let Some(Color::White) = get_color(down_left_square) {
-          piece_moves.push(Move::promotion_with_capture(from, down_left, -QUEEN, down_left_square));
-          piece_moves.push(Move::promotion_with_capture(from, down_left, -KNIGHT, down_left_square));
-          piece_moves.push(Move::promotion_with_capture(from, down_left, -ROOK, down_left_square));
-          piece_moves.push(Move::promotion_with_capture(from, down_left, -BISHOP, down_left_square));
+          piece_moves.push(Move::promotion_with_capture(index, down_left, -QUEEN, down_left_square));
+          piece_moves.push(Move::promotion_with_capture(index, down_left, -KNIGHT, down_left_square));
+          piece_moves.push(Move::promotion_with_capture(index, down_left, -ROOK, down_left_square));
+          piece_moves.push(Move::promotion_with_capture(index, down_left, -BISHOP, down_left_square));
         }
 
         if let Some(Color::White) = get_color(down_left_square) {
-          piece_moves.push(Move::promotion_with_capture(from, down_right, -QUEEN, down_left_square));
-          piece_moves.push(Move::promotion_with_capture(from, down_right, -KNIGHT, down_left_square));
-          piece_moves.push(Move::promotion_with_capture(from, down_right, -ROOK, down_left_square));
-          piece_moves.push(Move::promotion_with_capture(from, down_right, -BISHOP, down_left_square));
+          piece_moves.push(Move::promotion_with_capture(index, down_right, -QUEEN, down_left_square));
+          piece_moves.push(Move::promotion_with_capture(index, down_right, -KNIGHT, down_left_square));
+          piece_moves.push(Move::promotion_with_capture(index, down_right, -ROOK, down_left_square));
+          piece_moves.push(Move::promotion_with_capture(index, down_right, -BISHOP, down_left_square));
         }
       } else {
         if one_down_square == EMPTY {
-          piece_moves.push(Move::pawn_push(from, one_down));
+          piece_moves.push(Move::pawn_push(index, one_down));
 
           if in_seventh_rank {
-            let two_down = from + 20;
+            let two_down = index + 20;
             let two_down_square = self.pieces[two_down];
 
             if two_down_square == EMPTY {
-              piece_moves.push(Move::double_pawn_push(from, two_down));
+              piece_moves.push(Move::double_pawn_push(index, two_down));
             }
           }
         }
 
         if let Some(Color::White) = get_color(down_left_square) {
-          piece_moves.push(Move::capture(from, down_left, down_left_square));
+          piece_moves.push(Move::capture(index, down_left, down_left_square));
         }
 
         if let Some(Color::White) = get_color(down_right_square) {
-          piece_moves.push(Move::capture(from, down_right, down_right_square));
+          piece_moves.push(Move::capture(index, down_right, down_right_square));
         }
       }
     }
@@ -611,6 +660,8 @@ impl Board {
     piece_moves
   }
 
+  // Generates pseudo-legal moves. It means that it could leave its own king in check.
+  // Also includes castling, however it could be illegal.
   fn generate_moves(&self) -> Vec<Move> {
     let mut piece_moves: Vec<Move> = Vec::new();
 
@@ -636,25 +687,438 @@ impl Board {
       }
     }
 
+    // TODO: add castling
+
     piece_moves
   }
 
-  fn make_move(&mut self, chess_move: &Move) {
+  // TODO: does it take into consideration the meta information
+  fn make_move(&mut self, chess_move: &Move) -> MoveResult {
+    match *chess_move {
+      Move::Normal { from, to }
+      | Move::Capture {
+        from,
+        to,
+        captured_piece: _,
+      }
+      | Move::PawnPush { from, to }
+      | Move::DoublePawnPush { from, to } => {
+        self.pieces[to] = self.pieces[from];
+        self.pieces[from] = EMPTY;
+      }
+      Move::EnPassant {
+        from,
+        to,
+        captured_index,
+        captured_piece: _,
+      } => {
+        self.pieces[to] = self.pieces[from];
+        self.pieces[from] = EMPTY;
+        self.pieces[captured_index] = EMPTY;
+      }
+      Move::Promotion {
+        from,
+        to,
+        selected_piece,
+      }
+      | Move::PromotionWithCapture {
+        from,
+        to,
+        selected_piece,
+        captured_piece: _,
+      } => {
+        self.pieces[to] = selected_piece;
+        self.pieces[from] = EMPTY;
+      }
+      Move::Castling(CastlingSide::WhiteKing) => {
+        self.pieces[95] = EMPTY;
+        self.pieces[98] = EMPTY;
+
+        self.pieces[96] = ROOK;
+        self.pieces[97] = KING;
+      }
+      Move::Castling(CastlingSide::WhiteQueen) => {
+        self.pieces[95] = EMPTY;
+        self.pieces[91] = EMPTY;
+
+        self.pieces[94] = ROOK;
+        self.pieces[93] = KING;
+      }
+      Move::Castling(CastlingSide::BlackKing) => {
+        self.pieces[25] = EMPTY;
+        self.pieces[28] = EMPTY;
+
+        self.pieces[26] = -ROOK;
+        self.pieces[27] = -KING;
+      }
+      Move::Castling(CastlingSide::BlackQueen) => {
+        self.pieces[25] = EMPTY;
+        self.pieces[21] = EMPTY;
+
+        self.pieces[24] = -ROOK;
+        self.pieces[23] = -KING;
+      }
+    }
+
     todo!()
+
+    // TODO: check if move is legal. if not return MoveResult::IllegalMove
+
+    // self.undo_list.push(self.meta.clone());
+    // TODO: update board meta
   }
 
   fn undo_move(&mut self, chess_move: &Move) {
-    todo!()
+    self.meta = self
+      .undo_list
+      .pop()
+      .expect("Couldn't undo a move, because a move wasn't made");
+
+    match *chess_move {
+      Move::Normal { from, to } | Move::PawnPush { from, to } | Move::DoublePawnPush { from, to } => {
+        self.pieces[from] = self.pieces[to];
+        self.pieces[to] = EMPTY;
+      }
+      Move::Capture {
+        from,
+        to,
+        captured_piece,
+      } => {
+        self.pieces[from] = self.pieces[to];
+        self.pieces[to] = captured_piece;
+      }
+      Move::EnPassant {
+        from,
+        to,
+        captured_index,
+        captured_piece,
+      } => {
+        self.pieces[from] = self.pieces[to];
+        self.pieces[to] = EMPTY;
+        self.pieces[captured_index] = captured_piece;
+      }
+      Move::Promotion {
+        from,
+        to,
+        selected_piece,
+      } => {
+        if selected_piece < 0 {
+          self.pieces[from] = -PAWN;
+        } else {
+          self.pieces[from] = PAWN;
+        }
+        self.pieces[to] = EMPTY;
+      }
+      Move::PromotionWithCapture {
+        from,
+        to,
+        selected_piece,
+        captured_piece,
+      } => {
+        if selected_piece < 0 {
+          self.pieces[from] = -PAWN;
+        } else {
+          self.pieces[from] = PAWN;
+        }
+        self.pieces[to] = captured_piece;
+      }
+      Move::Castling(CastlingSide::WhiteKing) => {
+        self.pieces[95] = KING;
+        self.pieces[98] = ROOK;
+
+        self.pieces[96] = EMPTY;
+        self.pieces[97] = EMPTY;
+      }
+      Move::Castling(CastlingSide::WhiteQueen) => {
+        self.pieces[95] = KING;
+        self.pieces[91] = ROOK;
+
+        self.pieces[94] = EMPTY;
+        self.pieces[93] = EMPTY;
+      }
+      Move::Castling(CastlingSide::BlackKing) => {
+        self.pieces[25] = -KING;
+        self.pieces[28] = -ROOK;
+
+        self.pieces[26] = EMPTY;
+        self.pieces[27] = EMPTY;
+      }
+      Move::Castling(CastlingSide::BlackQueen) => {
+        self.pieces[25] = -KING;
+        self.pieces[21] = -ROOK;
+
+        self.pieces[24] = EMPTY;
+        self.pieces[23] = EMPTY;
+      }
+    };
+  }
+
+  // Returns whether a square is attacked by any of the other side's pieces.
+  // Note: does not take en passant into consideration (although, it shouldn't really matter).
+  fn square_is_attacked(&self, index: usize, defending_side: Color) -> bool {
+    // TODO: check if reordering increases performance
+
+    let king_positions: [usize; 8] = [
+      index - 11,
+      index - 10,
+      index - 9,
+      index - 1,
+      index + 1,
+      index + 9,
+      index + 10,
+      index + 11,
+    ];
+
+    if king_positions.iter().any(|&position| {
+      let square = self.pieces[position];
+      (defending_side == Color::White && square == -KING) || (defending_side == Color::Black && square == KING)
+    }) {
+      return true;
+    }
+
+    let knight_positions: [usize; 8] = [
+      index - 21,
+      index - 19,
+      index - 12,
+      index - 8,
+      index + 8,
+      index + 12,
+      index + 19,
+      index + 21,
+    ];
+
+    if knight_positions.iter().any(|&position| {
+      let square = self.pieces[position];
+      (defending_side == Color::White && square == -KNIGHT) || (defending_side == Color::Black && square == KNIGHT)
+    }) {
+      return true;
+    }
+
+    let bishop_directions: [i8; 4] = [-11, -9, 9, 11];
+
+    if bishop_directions.iter().any(|&direction| {
+      let mut position = index as i8;
+
+      loop {
+        position += direction;
+
+        let square = self.pieces[position as usize];
+
+        if square == OUTSIDE {
+          break false;
+        }
+
+        if square == EMPTY {
+          continue;
+        }
+
+        break ((square == -BISHOP || square == -QUEEN) && defending_side == Color::White)
+          || ((square == BISHOP || square == QUEEN) && defending_side == Color::Black);
+      }
+    }) {
+      return true;
+    }
+
+    let rook_directions: [i8; 4] = [-10, -1, 1, 10];
+
+    if rook_directions.iter().any(|&direction| {
+      let mut position = index as i8;
+
+      loop {
+        position += direction;
+
+        let square = self.pieces[position as usize];
+
+        if square == OUTSIDE {
+          break false;
+        }
+
+        if square == EMPTY {
+          continue;
+        }
+
+        break ((square == -ROOK || square == -QUEEN) && defending_side == Color::White)
+          || ((square == ROOK || square == QUEEN) && defending_side == Color::Black);
+      }
+    }) {
+      return true;
+    }
+
+    if defending_side == Color::White {
+      let up_left = index - 11;
+      let up_left_square = self.pieces[up_left];
+
+      let up_right = index - 9;
+      let up_right_square = self.pieces[up_right];
+
+      if up_left_square == -PAWN || up_right_square == -PAWN {
+        return true;
+      }
+    } else {
+      let down_left = index + 9;
+      let down_left_square = self.pieces[down_left];
+
+      let down_right = index + 11;
+      let down_right_square = self.pieces[down_right];
+
+      if down_left_square == PAWN || down_right_square == PAWN {
+        return true;
+      }
+    }
+
+    false
   }
 
   fn to_fen(&self) -> String {
-    todo!()
+    // rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+
+    let mut piece_placement: Vec<String> = vec![];
+
+    for y in 0..8 {
+      let mut rank = "".to_string();
+      let mut empty_in_a_row = 0;
+
+      for x in 0..8 {
+        let i = (y + 2) * 10 + (x + 1);
+        let square = self.pieces[i];
+
+        if square == EMPTY {
+          empty_in_a_row += 1;
+          continue;
+        }
+
+        if empty_in_a_row != 0 {
+          rank += &empty_in_a_row.to_string();
+          empty_in_a_row = 0;
+        }
+
+        let mut piece_char = match square.abs() {
+          PAWN => "P",
+          KNIGHT => "N",
+          BISHOP => "B",
+          ROOK => "R",
+          QUEEN => "Q",
+          KING => "K",
+          _ => panic!("This shouldn't panic"),
+        }
+        .to_string();
+
+        if square < 0 {
+          piece_char = piece_char.to_lowercase();
+        }
+
+        rank += &piece_char;
+      }
+
+      if empty_in_a_row != 0 {
+        rank += &empty_in_a_row.to_string();
+      }
+
+      piece_placement.push(rank);
+    }
+
+    let piece_placement = piece_placement.join("/");
+
+    let side_to_move = match self.side_to_move {
+      Color::White => "w",
+      Color::Black => "b",
+    };
+
+    let mut castling_ability = "".to_string();
+
+    if self.meta.white_king_castle {
+      castling_ability += "K";
+    }
+    if self.meta.white_queen_castle {
+      castling_ability += "Q";
+    }
+    if self.meta.black_king_castle {
+      castling_ability += "k";
+    }
+    if self.meta.black_queen_castle {
+      castling_ability += "q";
+    }
+    if castling_ability.is_empty() {
+      castling_ability += "-";
+    }
+
+    let mut en_passant_target_square = "-".to_string();
+    if let Some(en_passant_index) = self.meta.en_passant_index {
+      en_passant_target_square = index_to_square(en_passant_index);
+    }
+
+    let halfmove_clock = self.meta.halfmove_clock.to_string();
+
+    let fullmove_counter = self.fullmove_counter.to_string();
+
+    format!("{piece_placement} {side_to_move} {castling_ability} {en_passant_target_square} {halfmove_clock} {fullmove_counter}")
   }
 }
 
 #[cfg(test)]
 mod tests {
+  use crate::board::{index_to_square, square_to_index};
+
   use super::Board;
+
+  #[test]
+  fn fen_test() {
+    // https://www.chessprogramming.org/Forsyth-Edwards_Notation
+
+    assert_eq!(
+      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      Board::default().to_fen()
+    );
+
+    assert_eq!(
+      "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+      Board::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1").to_fen()
+    );
+
+    assert_eq!(
+      "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2",
+      Board::from_fen("rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2").to_fen()
+    );
+
+    assert_eq!(
+      "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2",
+      Board::from_fen("rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2").to_fen()
+    );
+
+    assert_eq!(
+      "r1bqk2r/2ppbppp/p1n2n2/1p2p3/4P3/1B3N2/PPPP1PPP/RNBQR1K1 b kq - 0 1",
+      Board::from_fen("r1bqk2r/2ppbppp/p1n2n2/1p2p3/4P3/1B3N2/PPPP1PPP/RNBQR1K1 b kq - 0 1").to_fen()
+    );
+
+    assert_eq!(
+      "rnbqkbnr/ppppp1pp/8/8/4PpP1/7N/PPPP1P1P/RNBQKB1R b KQkq e3 0 1",
+      Board::from_fen("rnbqkbnr/ppppp1pp/8/8/4PpP1/7N/PPPP1P1P/RNBQKB1R b KQkq e3 0 1").to_fen()
+    );
+    assert_eq!("a1", index_to_square(square_to_index("a1")));
+    assert_eq!("a3", index_to_square(square_to_index("a3")));
+    assert_eq!("a8", index_to_square(square_to_index("a8")));
+    assert_eq!("c1", index_to_square(square_to_index("c1")));
+    assert_eq!("c3", index_to_square(square_to_index("c3")));
+    assert_eq!("c8", index_to_square(square_to_index("c8")));
+    assert_eq!("h1", index_to_square(square_to_index("h1")));
+    assert_eq!("h3", index_to_square(square_to_index("h3")));
+    assert_eq!("h8", index_to_square(square_to_index("h8")));
+  }
+
+  #[test]
+  fn move_generation_test() {
+    // r3k2r/1b4bq/8/8/8/8/7B/R3K2R w KQkq - 0 1
+    let chess_moves = vec![
+      "h2g1", "h2g3", "h2f4", "h2e5", "h2d6", "h2c7", "h2b8", "a1b1", "a1c1", "a1d1", "a1a2", "a1a3", "a1a4", "a1a5", "a1a6",
+      "a1a7", "a1a8", "h1f1", "h1g1", "e1d1", "e1f1", "e1d2", "e1e2", "e1f2", "e1g1", "e1c1",
+    ];
+
+    // k4n2/6P1/8/2pP4/8/8/8/4K2R w K c6 0 1
+    let chess_moves = vec![
+      "d5d6", "g7f8q", "g7f8r", "g7f8b", "g7f8n", "g7g8q", "g7g8r", "g7g8b", "g7g8n", "d5c6", "h1f1", "h1g1", "h1h2", "h1h3",
+      "h1h4", "h1h5", "h1h6", "h1h7", "h1h8", "e1d1", "e1f1", "e1d2", "e1e2", "e1f2", "e1g1",
+    ];
+  }
 
   #[test]
   fn perft_test() {
