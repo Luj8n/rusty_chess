@@ -7,11 +7,8 @@ const KING: i8 = 6;
 const EMPTY: i8 = 7;
 const OUTSIDE: i8 = 0;
 
-// TODO: check if changing all usizes to i8 and then casting to usize increases performance
-// TODO: check if storing information more densely (storing multiple things inside an i8) increases performance
-// TODO: check if make-unmake is faster than copy-make
-
 // Indices of the 10x12 board. Displayed as an 8x8 board.
+// Used for convenient board iterating
 const BOARD_INDICES: [i8; 64] = [
   21, 22, 23, 24, 25, 26, 27, 28, //
   31, 32, 33, 34, 35, 36, 37, 38, //
@@ -25,7 +22,7 @@ const BOARD_INDICES: [i8; 64] = [
 
 // Gives an index of the specified square (of the 10x12 board)
 // For example: square_to_index("a8") == 21
-fn square_to_index(square: &str) -> usize {
+fn square_to_index(square: &str) -> i8 {
   let file = *square.as_bytes().first().unwrap() as u32;
   let rank = square.chars().nth(1).unwrap().to_digit(10).unwrap();
 
@@ -37,7 +34,7 @@ fn square_to_index(square: &str) -> usize {
 
 // Gives the square of the specified index (of the 10x12 board)
 // For example: index_to_square(21) == "a8"
-fn index_to_square(index: usize) -> String {
+fn index_to_square(index: i8) -> String {
   let x = index % 10;
   let y = index / 10;
 
@@ -65,58 +62,52 @@ fn get_color(square: i8) -> Option<Color> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-enum Color {
+pub enum Color {
   White,
   Black,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-enum CastlingSide {
+pub enum CastlingSide {
   WhiteKing,
   WhiteQueen,
   BlackKing,
   BlackQueen,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-enum MoveResult {
-  Legal,
-  Illegal,
-}
-
 #[derive(Clone, Debug)]
-enum Move {
+pub enum Move {
   Normal {
-    from: usize,
-    to: usize,
+    from: i8,
+    to: i8,
   },
   Capture {
-    from: usize,
-    to: usize,
+    from: i8,
+    to: i8,
     captured_piece: i8,
   },
   PawnPush {
-    from: usize,
-    to: usize,
+    from: i8,
+    to: i8,
   },
   DoublePawnPush {
-    from: usize,
-    to: usize,
+    from: i8,
+    to: i8,
   },
   EnPassant {
-    from: usize,
-    to: usize,
-    captured_index: usize,
+    from: i8,
+    to: i8,
+    captured_index: i8,
     captured_piece: i8,
   },
   Promotion {
-    from: usize,
-    to: usize,
+    from: i8,
+    to: i8,
     selected_piece: i8,
   },
   PromotionWithCapture {
-    from: usize,
-    to: usize,
+    from: i8,
+    to: i8,
     selected_piece: i8,
     captured_piece: i8,
   },
@@ -124,11 +115,11 @@ enum Move {
 }
 
 impl Move {
-  fn normal(from: usize, to: usize) -> Move {
+  fn normal(from: i8, to: i8) -> Move {
     Move::Normal { from, to }
   }
 
-  fn capture(from: usize, to: usize, captured_piece: i8) -> Move {
+  fn capture(from: i8, to: i8, captured_piece: i8) -> Move {
     Move::Capture {
       from,
       to,
@@ -136,15 +127,15 @@ impl Move {
     }
   }
 
-  fn pawn_push(from: usize, to: usize) -> Move {
+  fn pawn_push(from: i8, to: i8) -> Move {
     Move::PawnPush { from, to }
   }
 
-  fn double_pawn_push(from: usize, to: usize) -> Move {
+  fn double_pawn_push(from: i8, to: i8) -> Move {
     Move::DoublePawnPush { from, to }
   }
 
-  fn en_passant(from: usize, to: usize, captured_index: usize, captured_piece: i8) -> Move {
+  fn en_passant(from: i8, to: i8, captured_index: i8, captured_piece: i8) -> Move {
     Move::EnPassant {
       from,
       to,
@@ -153,7 +144,7 @@ impl Move {
     }
   }
 
-  fn promotion(from: usize, to: usize, selected_piece: i8) -> Move {
+  fn promotion(from: i8, to: i8, selected_piece: i8) -> Move {
     Move::Promotion {
       from,
       to,
@@ -161,7 +152,7 @@ impl Move {
     }
   }
 
-  fn promotion_with_capture(from: usize, to: usize, selected_piece: i8, captured_piece: i8) -> Move {
+  fn promotion_with_capture(from: i8, to: i8, selected_piece: i8, captured_piece: i8) -> Move {
     Move::PromotionWithCapture {
       from,
       to,
@@ -174,7 +165,7 @@ impl Move {
     Move::Castling(corner)
   }
 
-  fn to_fen(&self) -> String {
+  pub fn to_fen(&self) -> String {
     match *self {
       Move::Normal { from, to }
       | Move::Capture {
@@ -231,18 +222,17 @@ struct BoardMeta {
   // The en passant target square is specified after a double push of a pawn,
   // no matter whether an en passant capture is really possible or not
   // Note: the rank will always be either 3 or 6.
-  en_passant_index: Option<usize>,
+  en_passant_index: Option<i8>,
 
-  // The halfmove clock specifies a decimal number of half moves with respect to the 50 move draw rule.
+  // The halfmove clock specifies a decimal number of half moves with respect to the 50 move draw rule. (https://www.chessprogramming.org/Fifty-move_Rule)
   // It is reset to zero after a capture or a pawn move and incremented otherwise.
   halfmove_clock: u8,
-  // TODO: Some kind of hash. Probably recalculated after every move
   // hash: _,
 }
 
 // Stores all the game information
 #[derive(Clone, Debug)]
-struct Board {
+pub struct Board {
   // The actual piece board. It is 10x12.
   // 2 vertical and 1 horizontal padding.
   // Top left corner (index 21) is a8, and the bottom left corner (index 98) is h1.
@@ -251,11 +241,11 @@ struct Board {
   // Otherwise, it is either empty, outside (in the padding) or white's piece.
   pieces: [i8; 120],
 
-  // TODO
+  // Stores previous meta information, which needed after undoing a move.
   undo_list: Vec<BoardMeta>,
 
   // Whether it's white's turn to move
-  side_to_move: Color,
+  pub side_to_move: Color,
 
   // The number of the full moves in a game.
   // It starts at 1, and is incremented after each Black's move.
@@ -264,6 +254,9 @@ struct Board {
   // Stores additional information
   // Gets updated with every move
   meta: BoardMeta,
+
+  white_king_index: i8,
+  black_king_index: i8,
 }
 
 impl Default for Board {
@@ -273,11 +266,14 @@ impl Default for Board {
 }
 
 impl Board {
-  fn from_fen(fen: &str) -> Board {
+  pub fn from_fen(fen: &str) -> Board {
     let fields: Vec<&str> = fen.split(' ').collect();
     let ranks: Vec<&str> = fields[0].split('/').collect();
 
     let mut pieces = [OUTSIDE; 120];
+
+    let mut white_king_index: Option<i8> = None;
+    let mut black_king_index: Option<i8> = None;
 
     for (i, s) in ranks.iter().enumerate() {
       let y = 2 + i;
@@ -296,6 +292,12 @@ impl Board {
               _ => panic!("Incorrect fen"),
             }
           };
+
+          if c == 'K' {
+            white_king_index = Some((y * 10 + x) as i8);
+          } else if c == 'k' {
+            black_king_index = Some((y * 10 + x) as i8);
+          }
 
           if c.is_lowercase() {
             pieces[y * 10 + x] *= -1;
@@ -330,6 +332,8 @@ impl Board {
         },
         halfmove_clock: fields[4].parse().unwrap(),
       },
+      white_king_index: white_king_index.expect("Incorrect fen"),
+      black_king_index: black_king_index.expect("Incorrect fen"),
     }
   }
 
@@ -367,12 +371,9 @@ impl Board {
     s
   }
 
-  // TODO: maybe don't return a vector but instead mutate it
   // Returns pseudo legal moves for a king from a specified square
-  fn king_moves(&self, index: usize, color: Color) -> Vec<Move> {
-    let mut piece_moves: Vec<Move> = Vec::with_capacity(8);
-
-    let positions: [usize; 8] = [
+  fn king_moves(&self, index: i8, color: Color, piece_moves: &mut Vec<Move>) {
+    let positions: [i8; 8] = [
       index - 11,
       index - 10,
       index - 9,
@@ -384,7 +385,7 @@ impl Board {
     ];
 
     for position in positions {
-      let square = self.pieces[position];
+      let square = self.pieces[position as usize];
       if square == OUTSIDE {
         continue;
       }
@@ -394,14 +395,10 @@ impl Board {
         piece_moves.push(Move::capture(index, position, square));
       }
     }
-
-    piece_moves
   }
 
-  fn knight_moves(&self, index: usize, color: Color) -> Vec<Move> {
-    let mut piece_moves: Vec<Move> = Vec::with_capacity(8);
-
-    let positions: [usize; 8] = [
+  fn knight_moves(&self, index: i8, color: Color, piece_moves: &mut Vec<Move>) {
+    let positions: [i8; 8] = [
       index - 21,
       index - 19,
       index - 12,
@@ -413,7 +410,7 @@ impl Board {
     ];
 
     for position in positions {
-      let square = self.pieces[position];
+      let square = self.pieces[position as usize];
       if square == OUTSIDE {
         continue;
       }
@@ -423,17 +420,13 @@ impl Board {
         piece_moves.push(Move::capture(index, position, square));
       }
     }
-
-    piece_moves
   }
 
-  fn bishop_moves(&self, index: usize, color: Color) -> Vec<Move> {
-    let mut piece_moves: Vec<Move> = Vec::with_capacity(13);
-
+  fn bishop_moves(&self, index: i8, color: Color, piece_moves: &mut Vec<Move>) {
     let directions: [i8; 4] = [-11, -9, 9, 11];
 
     for direction in directions {
-      let mut position: i8 = index as i8;
+      let mut position: i8 = index;
 
       loop {
         position += direction;
@@ -445,27 +438,23 @@ impl Board {
         }
 
         if square == EMPTY {
-          piece_moves.push(Move::normal(index, position as usize));
+          piece_moves.push(Move::normal(index, position));
         } else {
           if (square < 0 && matches!(color, Color::White)) || (square > 0 && matches!(color, Color::Black)) {
-            piece_moves.push(Move::capture(index, position as usize, square));
+            piece_moves.push(Move::capture(index, position, square));
           }
 
           break;
         }
       }
     }
-
-    piece_moves
   }
 
-  fn rook_moves(&self, index: usize, color: Color) -> Vec<Move> {
-    let mut piece_moves: Vec<Move> = Vec::with_capacity(14);
-
+  fn rook_moves(&self, index: i8, color: Color, piece_moves: &mut Vec<Move>) {
     let directions: [i8; 4] = [-10, -1, 1, 10];
 
     for direction in directions {
-      let mut position: i8 = index as i8;
+      let mut position: i8 = index;
 
       loop {
         position += direction;
@@ -477,27 +466,23 @@ impl Board {
         }
 
         if square == EMPTY {
-          piece_moves.push(Move::normal(index, position as usize));
+          piece_moves.push(Move::normal(index, position));
         } else {
           if (square < 0 && matches!(color, Color::White)) || (square > 0 && matches!(color, Color::Black)) {
-            piece_moves.push(Move::capture(index, position as usize, square));
+            piece_moves.push(Move::capture(index, position, square));
           }
 
           break;
         }
       }
     }
-
-    piece_moves
   }
 
-  fn queen_moves(&self, index: usize, color: Color) -> Vec<Move> {
-    let mut piece_moves: Vec<Move> = Vec::with_capacity(27);
-
+  fn queen_moves(&self, index: i8, color: Color, piece_moves: &mut Vec<Move>) {
     let directions: [i8; 8] = [-11, -10, -9, -1, 1, 9, 10, 11];
 
     for direction in directions {
-      let mut position: i8 = index as i8;
+      let mut position: i8 = index;
 
       loop {
         position += direction;
@@ -509,41 +494,37 @@ impl Board {
         }
 
         if square == EMPTY {
-          piece_moves.push(Move::normal(index, position as usize));
+          piece_moves.push(Move::normal(index, position));
         } else {
           if (square < 0 && matches!(color, Color::White)) || (square > 0 && matches!(color, Color::Black)) {
-            piece_moves.push(Move::capture(index, position as usize, square));
+            piece_moves.push(Move::capture(index, position, square));
           }
 
           break;
         }
       }
     }
-
-    piece_moves
   }
 
-  fn pawn_moves(&self, index: usize, color: Color) -> Vec<Move> {
-    let mut piece_moves: Vec<Move> = Vec::with_capacity(12);
-
+  fn pawn_moves(&self, index: i8, color: Color, piece_moves: &mut Vec<Move>) {
     let in_second_rank = (81..=88).contains(&index);
     let in_seventh_rank = (31..=38).contains(&index);
 
     let one_left = index - 1;
-    let one_left_square = self.pieces[one_left];
+    let one_left_square = self.pieces[one_left as usize];
 
     let one_right = index + 1;
-    let one_right_square = self.pieces[one_right];
+    let one_right_square = self.pieces[one_right as usize];
 
     if matches!(color, Color::White) {
       let one_up = index - 10;
-      let one_up_square = self.pieces[one_up];
+      let one_up_square = self.pieces[one_up as usize];
 
       let up_left = index - 11;
-      let up_left_square = self.pieces[up_left];
+      let up_left_square = self.pieces[up_left as usize];
 
       let up_right = index - 9;
-      let up_right_square = self.pieces[up_right];
+      let up_right_square = self.pieces[up_right as usize];
 
       if self.meta.en_passant_index == Some(up_left) {
         piece_moves.push(Move::en_passant(index, up_left, one_left, one_left_square));
@@ -582,7 +563,7 @@ impl Board {
 
           if in_first_row {
             let two_up = index - 20;
-            let two_up_square = self.pieces[two_up];
+            let two_up_square = self.pieces[two_up as usize];
 
             if two_up_square == EMPTY {
               piece_moves.push(Move::double_pawn_push(index, two_up));
@@ -600,13 +581,13 @@ impl Board {
       }
     } else {
       let one_down = index + 10;
-      let one_down_square = self.pieces[one_down];
+      let one_down_square = self.pieces[one_down as usize];
 
       let down_left = index + 9;
-      let down_left_square = self.pieces[down_left];
+      let down_left_square = self.pieces[down_left as usize];
 
       let down_right = index + 11;
-      let down_right_square = self.pieces[down_right];
+      let down_right_square = self.pieces[down_right as usize];
 
       if self.meta.en_passant_index == Some(down_left) {
         piece_moves.push(Move::en_passant(index, down_left, one_left, one_left_square));
@@ -631,11 +612,11 @@ impl Board {
           piece_moves.push(Move::promotion_with_capture(index, down_left, -BISHOP, down_left_square));
         }
 
-        if let Some(Color::White) = get_color(down_left_square) {
-          piece_moves.push(Move::promotion_with_capture(index, down_right, -QUEEN, down_left_square));
-          piece_moves.push(Move::promotion_with_capture(index, down_right, -KNIGHT, down_left_square));
-          piece_moves.push(Move::promotion_with_capture(index, down_right, -ROOK, down_left_square));
-          piece_moves.push(Move::promotion_with_capture(index, down_right, -BISHOP, down_left_square));
+        if let Some(Color::White) = get_color(down_right_square) {
+          piece_moves.push(Move::promotion_with_capture(index, down_right, -QUEEN, down_right_square));
+          piece_moves.push(Move::promotion_with_capture(index, down_right, -KNIGHT, down_right_square));
+          piece_moves.push(Move::promotion_with_capture(index, down_right, -ROOK, down_right_square));
+          piece_moves.push(Move::promotion_with_capture(index, down_right, -BISHOP, down_right_square));
         }
       } else {
         if one_down_square == EMPTY {
@@ -643,7 +624,7 @@ impl Board {
 
           if in_seventh_rank {
             let two_down = index + 20;
-            let two_down_square = self.pieces[two_down];
+            let two_down_square = self.pieces[two_down as usize];
 
             if two_down_square == EMPTY {
               piece_moves.push(Move::double_pawn_push(index, two_down));
@@ -660,28 +641,35 @@ impl Board {
         }
       }
     }
-
-    piece_moves
   }
 
-  // It is slower than pseudo_legal_moves because it doesn't check if the king is left in check
+  // It is slower than pseudo_legal_moves because it checks if the king is left in check
+  // To do that it needs to make the move and then undo it.
+  // Therefore, pseudo_legal_moves should actually be used and then manually checked if the player is left in check.
   fn legal_moves(&mut self) -> Vec<Move> {
+    let side = self.side_to_move.clone();
     self
       .pseudo_legal_moves()
       .into_iter()
       .filter(|chess_move| {
-        let re = self.make_move(chess_move);
+        self.make_move(chess_move);
+        let is_legal = !self.in_check(&side);
         self.undo_move(chess_move);
 
-        re != MoveResult::Illegal
+        is_legal
       })
       .collect()
   }
 
   // Generates pseudo-legal moves. It means that it could leave its own king in check.
   // Includes castling (it also can be pseudo-legal)
-  fn pseudo_legal_moves(&self) -> Vec<Move> {
-    let mut piece_moves: Vec<Move> = Vec::new();
+  // However, the fifty-move rule is checked
+  pub fn pseudo_legal_moves(&self) -> Vec<Move> {
+    if self.meta.halfmove_clock >= 100 {
+      return vec![];
+    }
+
+    let mut piece_moves: Vec<Move> = Vec::with_capacity(50);
 
     for from in BOARD_INDICES {
       let square = self.pieces[from as usize];
@@ -692,12 +680,12 @@ impl Board {
         }
 
         match square.abs() {
-          PAWN => piece_moves.append(&mut self.pawn_moves(from as usize, square_color)),
-          KNIGHT => piece_moves.append(&mut self.knight_moves(from as usize, square_color)),
-          BISHOP => piece_moves.append(&mut self.bishop_moves(from as usize, square_color)),
-          ROOK => piece_moves.append(&mut self.rook_moves(from as usize, square_color)),
-          QUEEN => piece_moves.append(&mut self.queen_moves(from as usize, square_color)),
-          KING => piece_moves.append(&mut self.king_moves(from as usize, square_color)),
+          PAWN => self.pawn_moves(from, square_color, &mut piece_moves),
+          KNIGHT => self.knight_moves(from, square_color, &mut piece_moves),
+          BISHOP => self.bishop_moves(from, square_color, &mut piece_moves),
+          ROOK => self.rook_moves(from, square_color, &mut piece_moves),
+          QUEEN => self.queen_moves(from, square_color, &mut piece_moves),
+          KING => self.king_moves(from, square_color, &mut piece_moves),
           _ => {
             panic!("This shouldn't panic");
           }
@@ -706,40 +694,32 @@ impl Board {
     }
 
     if self.side_to_move == Color::White {
-      // TODO: self.square_is_attacked(95, Color::White) is called 2 times
+      let king_side = self.meta.white_king_castle && self.pieces[96] == EMPTY && self.pieces[97] == EMPTY;
+      let queen_side =
+        self.meta.white_queen_castle && self.pieces[94] == EMPTY && self.pieces[93] == EMPTY && self.pieces[92] == EMPTY;
 
-      if self.meta.white_king_castle
-        && self.pieces[96] == EMPTY
-        && self.pieces[97] == EMPTY
-        && !self.square_is_attacked(95, Color::White)
-        && !self.square_is_attacked(96, Color::White)
-      {
-        piece_moves.push(Move::castling(CastlingSide::WhiteKing));
-      }
-      if self.meta.white_queen_castle
-        && self.pieces[94] == EMPTY
-        && self.pieces[93] == EMPTY
-        && !self.square_is_attacked(95, Color::White)
-        && !self.square_is_attacked(94, Color::White)
-      {
-        piece_moves.push(Move::castling(CastlingSide::WhiteQueen));
+      if (king_side || queen_side) && !self.square_is_attacked(95, &Color::White) {
+        if king_side && !self.square_is_attacked(96, &Color::White) {
+          piece_moves.push(Move::castling(CastlingSide::WhiteKing));
+        }
+
+        if queen_side && !self.square_is_attacked(94, &Color::White) {
+          piece_moves.push(Move::castling(CastlingSide::WhiteQueen));
+        }
       }
     } else {
-      if self.meta.black_king_castle
-        && self.pieces[26] == EMPTY
-        && self.pieces[27] == EMPTY
-        && !self.square_is_attacked(25, Color::Black)
-        && !self.square_is_attacked(26, Color::Black)
-      {
-        piece_moves.push(Move::castling(CastlingSide::BlackKing));
-      }
-      if self.meta.black_queen_castle
-        && self.pieces[24] == EMPTY
-        && self.pieces[23] == EMPTY
-        && !self.square_is_attacked(25, Color::Black)
-        && !self.square_is_attacked(24, Color::Black)
-      {
-        piece_moves.push(Move::castling(CastlingSide::BlackQueen));
+      let king_side = self.meta.black_king_castle && self.pieces[26] == EMPTY && self.pieces[27] == EMPTY;
+      let queen_side =
+        self.meta.black_queen_castle && self.pieces[24] == EMPTY && self.pieces[23] == EMPTY && self.pieces[22] == EMPTY;
+
+      if (king_side || queen_side) && !self.square_is_attacked(25, &Color::Black) {
+        if king_side && !self.square_is_attacked(26, &Color::Black) {
+          piece_moves.push(Move::castling(CastlingSide::BlackKing));
+        }
+
+        if queen_side && !self.square_is_attacked(24, &Color::Black) {
+          piece_moves.push(Move::castling(CastlingSide::BlackQueen));
+        }
       }
     }
 
@@ -748,6 +728,8 @@ impl Board {
 
   // Updates meta information: castling rights, en passant square, and the halfmove clock
   fn update_meta(&mut self, chess_move: &Move) {
+    // Note: the board is already updated, so can't depend on it
+
     // save the current meta information
     self.undo_list.push(self.meta.clone());
 
@@ -783,7 +765,7 @@ impl Board {
         self.meta.halfmove_clock = 0;
       }
       Move::DoublePawnPush { from, to } => {
-        self.meta.en_passant_index = Some((from + to) / 2);
+        self.meta.en_passant_index = Some(((from as usize + to as usize) / 2) as i8);
         self.meta.halfmove_clock = 0;
       }
       Move::Castling(_) => {
@@ -794,10 +776,10 @@ impl Board {
 
     match *chess_move {
       Move::Normal { from, to: _ } => {
-        if self.pieces[from] == KING {
+        if from == 95 {
           self.meta.white_king_castle = false;
           self.meta.white_queen_castle = false;
-        } else if self.pieces[from] == -KING {
+        } else if from == 25 {
           self.meta.black_king_castle = false;
           self.meta.black_queen_castle = false;
         } else if from == 98 {
@@ -815,13 +797,24 @@ impl Board {
         to,
         captured_piece: _,
       } => {
+        if from == 95 {
+          self.meta.white_king_castle = false;
+          self.meta.white_queen_castle = false;
+        } else if from == 25 {
+          self.meta.black_king_castle = false;
+          self.meta.black_queen_castle = false;
+        }
+
         if from == 98 || to == 98 {
           self.meta.white_king_castle = false;
-        } else if from == 91 || to == 91 {
+        }
+        if from == 91 || to == 91 {
           self.meta.white_queen_castle = false;
-        } else if from == 28 || to == 28 {
+        }
+        if from == 28 || to == 28 {
           self.meta.black_king_castle = false;
-        } else if from == 21 || to == 21 {
+        }
+        if from == 21 || to == 21 {
           self.meta.black_queen_castle = false;
         }
       }
@@ -854,8 +847,39 @@ impl Board {
   }
 
   // Makes a move, which updates the board and meta information.
-  // Returns whether the move was legal
-  fn make_move(&mut self, chess_move: &Move) -> MoveResult {
+  // Note: it doesn't check if it is legal.
+  pub fn make_move(&mut self, chess_move: &Move) {
+    // update king position
+    match *chess_move {
+      Move::Normal { from, to }
+      | Move::Capture {
+        from,
+        to,
+        captured_piece: _,
+      } => {
+        let square = self.pieces[from as usize];
+        if square == KING {
+          self.white_king_index = to;
+        } else if square == -KING {
+          self.black_king_index = to;
+        }
+      }
+      Move::Castling(CastlingSide::WhiteKing) => {
+        self.white_king_index = 97;
+      }
+      Move::Castling(CastlingSide::WhiteQueen) => {
+        self.white_king_index = 93;
+      }
+      Move::Castling(CastlingSide::BlackKing) => {
+        self.black_king_index = 27;
+      }
+      Move::Castling(CastlingSide::BlackQueen) => {
+        self.black_king_index = 23;
+      }
+      _ => {}
+    }
+
+    // move pieces
     match *chess_move {
       Move::Normal { from, to }
       | Move::Capture {
@@ -865,8 +889,8 @@ impl Board {
       }
       | Move::PawnPush { from, to }
       | Move::DoublePawnPush { from, to } => {
-        self.pieces[to] = self.pieces[from];
-        self.pieces[from] = EMPTY;
+        self.pieces[to as usize] = self.pieces[from as usize];
+        self.pieces[from as usize] = EMPTY;
       }
       Move::EnPassant {
         from,
@@ -874,9 +898,9 @@ impl Board {
         captured_index,
         captured_piece: _,
       } => {
-        self.pieces[to] = self.pieces[from];
-        self.pieces[from] = EMPTY;
-        self.pieces[captured_index] = EMPTY;
+        self.pieces[to as usize] = self.pieces[from as usize];
+        self.pieces[from as usize] = EMPTY;
+        self.pieces[captured_index as usize] = EMPTY;
       }
       Move::Promotion {
         from,
@@ -889,8 +913,8 @@ impl Board {
         selected_piece,
         captured_piece: _,
       } => {
-        self.pieces[to] = selected_piece;
-        self.pieces[from] = EMPTY;
+        self.pieces[to as usize] = selected_piece;
+        self.pieces[from as usize] = EMPTY;
       }
       Move::Castling(CastlingSide::WhiteKing) => {
         self.pieces[95] = EMPTY;
@@ -922,21 +946,12 @@ impl Board {
       }
     }
 
-    let mut king_is_safe = true;
+    self.update_meta(chess_move);
 
-    for from in BOARD_INDICES {
-      let square = self.pieces[from as usize];
-
-      if ((self.side_to_move == Color::White && square == KING) || (self.side_to_move == Color::Black && square == -KING))
-        && self.square_is_attacked(from as usize, self.side_to_move.clone())
-      {
-        king_is_safe = false;
-        break;
-      }
+    if self.side_to_move == Color::Black {
+      self.fullmove_counter += 1;
     }
 
-    self.update_meta(chess_move);
-    self.fullmove_counter += 1;
     self.side_to_move = {
       if self.side_to_move == Color::White {
         Color::Black
@@ -944,21 +959,18 @@ impl Board {
         Color::White
       }
     };
-
-    if king_is_safe {
-      MoveResult::Legal
-    } else {
-      MoveResult::Illegal
-    }
   }
 
-  fn undo_move(&mut self, chess_move: &Move) {
+  pub fn undo_move(&mut self, chess_move: &Move) {
     self.meta = self
       .undo_list
       .pop()
       .expect("Couldn't undo a move, because a move wasn't made");
 
-    self.fullmove_counter -= 1;
+    if self.side_to_move == Color::White {
+      self.fullmove_counter -= 1;
+    }
+
     self.side_to_move = {
       if self.side_to_move == Color::White {
         Color::Black
@@ -967,18 +979,42 @@ impl Board {
       }
     };
 
+    // update king position
+    match *chess_move {
+      Move::Normal { from, to }
+      | Move::Capture {
+        from,
+        to,
+        captured_piece: _,
+      } => {
+        let square = self.pieces[to as usize];
+        if square == KING {
+          self.white_king_index = from;
+        } else if square == -KING {
+          self.black_king_index = from;
+        }
+      }
+      Move::Castling(CastlingSide::WhiteKing | CastlingSide::WhiteQueen) => {
+        self.white_king_index = 95;
+      }
+      Move::Castling(CastlingSide::BlackKing | CastlingSide::BlackQueen) => {
+        self.black_king_index = 25;
+      }
+      _ => {}
+    }
+
     match *chess_move {
       Move::Normal { from, to } | Move::PawnPush { from, to } | Move::DoublePawnPush { from, to } => {
-        self.pieces[from] = self.pieces[to];
-        self.pieces[to] = EMPTY;
+        self.pieces[from as usize] = self.pieces[to as usize];
+        self.pieces[to as usize] = EMPTY;
       }
       Move::Capture {
         from,
         to,
         captured_piece,
       } => {
-        self.pieces[from] = self.pieces[to];
-        self.pieces[to] = captured_piece;
+        self.pieces[from as usize] = self.pieces[to as usize];
+        self.pieces[to as usize] = captured_piece;
       }
       Move::EnPassant {
         from,
@@ -986,9 +1022,9 @@ impl Board {
         captured_index,
         captured_piece,
       } => {
-        self.pieces[from] = self.pieces[to];
-        self.pieces[to] = EMPTY;
-        self.pieces[captured_index] = captured_piece;
+        self.pieces[from as usize] = self.pieces[to as usize];
+        self.pieces[to as usize] = EMPTY;
+        self.pieces[captured_index as usize] = captured_piece;
       }
       Move::Promotion {
         from,
@@ -996,11 +1032,11 @@ impl Board {
         selected_piece,
       } => {
         if selected_piece < 0 {
-          self.pieces[from] = -PAWN;
+          self.pieces[from as usize] = -PAWN;
         } else {
-          self.pieces[from] = PAWN;
+          self.pieces[from as usize] = PAWN;
         }
-        self.pieces[to] = EMPTY;
+        self.pieces[to as usize] = EMPTY;
       }
       Move::PromotionWithCapture {
         from,
@@ -1009,11 +1045,11 @@ impl Board {
         captured_piece,
       } => {
         if selected_piece < 0 {
-          self.pieces[from] = -PAWN;
+          self.pieces[from as usize] = -PAWN;
         } else {
-          self.pieces[from] = PAWN;
+          self.pieces[from as usize] = PAWN;
         }
-        self.pieces[to] = captured_piece;
+        self.pieces[to as usize] = captured_piece;
       }
       Move::Castling(CastlingSide::WhiteKing) => {
         self.pieces[95] = KING;
@@ -1046,42 +1082,18 @@ impl Board {
     };
   }
 
-  fn in_check(&self) -> bool {
-    for from in BOARD_INDICES {
-      let square = self.pieces[from as usize];
-
-      if square.abs() == KING && get_color(square).unwrap() == self.side_to_move {
-        return self.square_is_attacked(from as usize, self.side_to_move.clone());
-      }
+  pub fn in_check(&self, side: &Color) -> bool {
+    if *side == Color::White {
+      self.square_is_attacked(self.white_king_index, side)
+    } else {
+      self.square_is_attacked(self.black_king_index, side)
     }
-
-    panic!("No king on board");
   }
 
   // Returns whether a square is attacked by any of the other side's pieces.
   // Note: does not take en passant into consideration (although, it shouldn't really matter).
-  fn square_is_attacked(&self, index: usize, defending_side: Color) -> bool {
-    // TODO: check if reordering increases performance
-
-    let king_positions: [usize; 8] = [
-      index - 11,
-      index - 10,
-      index - 9,
-      index - 1,
-      index + 1,
-      index + 9,
-      index + 10,
-      index + 11,
-    ];
-
-    if king_positions.iter().any(|&position| {
-      let square = self.pieces[position];
-      (defending_side == Color::White && square == -KING) || (defending_side == Color::Black && square == KING)
-    }) {
-      return true;
-    }
-
-    let knight_positions: [usize; 8] = [
+  fn square_is_attacked(&self, index: i8, defending_side: &Color) -> bool {
+    let knight_positions: [i8; 8] = [
       index - 21,
       index - 19,
       index - 12,
@@ -1093,8 +1105,8 @@ impl Board {
     ];
 
     if knight_positions.iter().any(|&position| {
-      let square = self.pieces[position];
-      (defending_side == Color::White && square == -KNIGHT) || (defending_side == Color::Black && square == KNIGHT)
+      let square = self.pieces[position as usize];
+      (*defending_side == Color::White && square == -KNIGHT) || (*defending_side == Color::Black && square == KNIGHT)
     }) {
       return true;
     }
@@ -1102,7 +1114,7 @@ impl Board {
     let bishop_directions: [i8; 4] = [-11, -9, 9, 11];
 
     if bishop_directions.iter().any(|&direction| {
-      let mut position = index as i8;
+      let mut position = index;
 
       loop {
         position += direction;
@@ -1117,8 +1129,8 @@ impl Board {
           continue;
         }
 
-        break ((square == -BISHOP || square == -QUEEN) && defending_side == Color::White)
-          || ((square == BISHOP || square == QUEEN) && defending_side == Color::Black);
+        break ((square == -BISHOP || square == -QUEEN) && *defending_side == Color::White)
+          || ((square == BISHOP || square == QUEEN) && *defending_side == Color::Black);
       }
     }) {
       return true;
@@ -1127,7 +1139,7 @@ impl Board {
     let rook_directions: [i8; 4] = [-10, -1, 1, 10];
 
     if rook_directions.iter().any(|&direction| {
-      let mut position = index as i8;
+      let mut position = index;
 
       loop {
         position += direction;
@@ -1142,29 +1154,47 @@ impl Board {
           continue;
         }
 
-        break ((square == -ROOK || square == -QUEEN) && defending_side == Color::White)
-          || ((square == ROOK || square == QUEEN) && defending_side == Color::Black);
+        break ((square == -ROOK || square == -QUEEN) && *defending_side == Color::White)
+          || ((square == ROOK || square == QUEEN) && *defending_side == Color::Black);
       }
     }) {
       return true;
     }
 
-    if defending_side == Color::White {
+    let king_positions: [i8; 8] = [
+      index - 11,
+      index - 10,
+      index - 9,
+      index - 1,
+      index + 1,
+      index + 9,
+      index + 10,
+      index + 11,
+    ];
+
+    if king_positions.iter().any(|&position| {
+      let square = self.pieces[position as usize];
+      (*defending_side == Color::White && square == -KING) || (*defending_side == Color::Black && square == KING)
+    }) {
+      return true;
+    }
+
+    if *defending_side == Color::White {
       let up_left = index - 11;
-      let up_left_square = self.pieces[up_left];
+      let up_left_square = self.pieces[up_left as usize];
 
       let up_right = index - 9;
-      let up_right_square = self.pieces[up_right];
+      let up_right_square = self.pieces[up_right as usize];
 
       if up_left_square == -PAWN || up_right_square == -PAWN {
         return true;
       }
     } else {
       let down_left = index + 9;
-      let down_left_square = self.pieces[down_left];
+      let down_left_square = self.pieces[down_left as usize];
 
       let down_right = index + 11;
-      let down_right_square = self.pieces[down_right];
+      let down_right_square = self.pieces[down_right as usize];
 
       if down_left_square == PAWN || down_right_square == PAWN {
         return true;
@@ -1174,7 +1204,7 @@ impl Board {
     false
   }
 
-  fn to_fen(&self) -> String {
+  pub fn to_fen(&self) -> String {
     // rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
 
     let mut piece_placement: Vec<String> = vec![];
@@ -1375,7 +1405,6 @@ mod tests {
     fn test_fen<const N: usize>(fen: &str, depth_nodes: [u64; N]) {
       let mut board = Board::from_fen(fen);
 
-      // TODO: include capture, en passant, castle, promotion, check, discovery check, double check and checkmate counts
       fn perft(depth: usize, board: &mut Board) -> u64 {
         // https://www.chessprogramming.org/Perft
 
@@ -1385,10 +1414,11 @@ mod tests {
           return 1;
         }
 
+        let side_to_move = board.side_to_move.clone();
+
         for chess_move in board.pseudo_legal_moves() {
           board.make_move(&chess_move);
-          // TODO: fix
-          if !board.in_check() {
+          if !board.in_check(&side_to_move) {
             nodes += perft(depth - 1, board);
           }
           board.undo_move(&chess_move);
@@ -1403,27 +1433,45 @@ mod tests {
     }
 
     // Position 1
-    test_fen::<6>(
+    test_fen::<7>(
       "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-      [1, 20, 400, 8_902, 197_281, 4_865_609],
+      [1, 20, 400, 8_902, 197_281, 4_865_609, 119_060_324],
     );
 
-    // Position 1
-    // test_fen::<7>(
-    //   "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-    //   [1, 20, 400, 8_902, 197_281, 4_865_609, 119_060_324],
-    // );
+    // Position 2
+    test_fen::<6>(
+      "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+      [1, 48, 2_039, 97_862, 4_085_603, 193_690_690],
+    );
 
-    // // Position 5
-    // test_fen::<6>(
-    //   "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
-    //   [1, 44, 1_486, 62_379, 2_103_487, 89_941_194],
-    // );
+    // Position 3
+    test_fen::<7>(
+      "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+      [1, 14, 191, 2_812, 43_238, 674_624, 11_030_083],
+    );
 
-    // // Position 6
-    // test_fen::<6>(
-    //   "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
-    //   [1, 46, 2_079, 89_890, 3_894_594, 164_075_551],
-    // );
+    // Position 4
+    test_fen::<6>(
+      "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+      [1, 6, 264, 9_467, 422_333, 15_833_292],
+    );
+
+    // Position 4 mirrored
+    test_fen::<6>(
+      "r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1",
+      [1, 6, 264, 9_467, 422_333, 15_833_292],
+    );
+
+    // Position 5
+    test_fen::<6>(
+      "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+      [1, 44, 1_486, 62_379, 2_103_487, 89_941_194],
+    );
+
+    // Position 6
+    test_fen::<6>(
+      "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+      [1, 46, 2_079, 89_890, 3_894_594, 164_075_551],
+    );
   }
 }
