@@ -784,7 +784,7 @@ impl Board {
   // It is slower than pseudo_legal_moves because it checks if the king is left in check
   // To do that it needs to make the move and then undo it.
   // Therefore, pseudo_legal_moves should actually be used and then manually checked if the player is left in check.
-  fn legal_moves(&mut self) -> Vec<Move> {
+  pub fn legal_moves(&mut self) -> Vec<Move> {
     let side = self.side_to_move.clone();
     self
       .pseudo_legal_moves()
