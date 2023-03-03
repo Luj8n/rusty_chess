@@ -1,3 +1,5 @@
+use rand::prelude::*;
+
 const PAWN: i8 = 1;
 const KNIGHT: i8 = 2;
 const BISHOP: i8 = 3;
@@ -157,6 +159,26 @@ const KNIGHT_VALUE: i32 = 350;
 const BISHOP_VALUE: i32 = 350;
 const ROOK_VALUE: i32 = 525;
 const QUEEN_VALUE: i32 = 1000;
+
+struct HashTable {
+  pieces: [[u128; 12]; 64],
+}
+
+impl HashTable {
+  fn new() -> HashTable {
+    let table = [[0_u128; 12]; 64];
+
+    let mut rng = StdRng::seed_from_u64(0);
+
+    for position in 0..64 {
+      for piece in 0..12 {
+        // TODO
+      }
+    }
+
+    todo!()
+  }
+}
 
 // Gives an index of the specified square (of the 10x12 board)
 // For example: square_to_index("a8") == 21
@@ -365,7 +387,9 @@ struct BoardMeta {
   // The halfmove clock specifies a decimal number of half moves with respect to the 50 move draw rule. (https://www.chessprogramming.org/Fifty-move_Rule)
   // It is reset to zero after a capture or a pawn move and incremented otherwise.
   halfmove_clock: u8,
-  // hash: _,
+
+  // Zobrist hash (https://www.chessprogramming.org/Zobrist_Hashing)
+  hash: u128,
 }
 
 // Stores all the game information
@@ -469,6 +493,7 @@ impl Board {
           }
         },
         halfmove_clock: fields[4].parse().unwrap(),
+        hash: todo!(),
       },
       white_king_index: white_king_index.expect("Incorrect fen"),
       black_king_index: black_king_index.expect("Incorrect fen"),

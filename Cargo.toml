@@ -13,4 +13,5 @@ panic = "abort"
 # debug = true
 
 [dependencies]
+rand = "0.8.5"
 # mimalloc = { version = "0.1.34", default-features = false }
