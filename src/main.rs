@@ -1,12 +1,17 @@
-// #[global_allocator]
-// static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 mod board;
 
 use std::time::Instant;
 
 use board::Board;
+use std::env;
+use tokio::{
+  io::{AsyncReadExt, AsyncWriteExt},
+  net::TcpStream,
+};
 
 use crate::board::Color;
+
+const BLACK_SIDE: bool = true;
 
 fn perft_div(fen: &str, depth: usize) {
   let current_time = Instant::now();
@@ -142,7 +147,66 @@ fn best_move(fen: &str, depth: usize) {
   println!("Time taken: {:?}", time_elapsed);
 }
 
-fn main() {
-  // perft_div("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8", 6);
-  best_move("rn3k1r/pp2bppp/2p5/5q2/2B5/8/PPP1NKPP/RNBQ3R w - - 1 10", 5);
+struct Packet {
+  fen: String,
+  // time is in ms
+  white_time_left: isize,
+  black_time_left: isize,
+}
+
+fn decode_packet(buf: &[u8]) -> Packet {
+  let packet = String::from_utf8(buf.to_vec()).expect("Couldn't parse packet");
+
+  let strings: Vec<&str> = packet.split(' ').collect();
+  let fen = strings[..6].join(" ");
+  let white_time_left = strings[6].parse::<isize>().expect("Couldn't parse time remaining");
+  let black_time_left = strings[7].parse::<isize>().expect("Couldn't parse time remaining");
+
+  Packet {
+    fen,
+    white_time_left,
+    black_time_left,
+  }
+}
+
+#[tokio::main]
+async fn main() {
+  let port = if BLACK_SIDE { 6970 } else { 6969 };
+
+  if let Ok(mut stream) = TcpStream::connect(format!("127.0.0.1:{port}")).await {
+    println!("Connected to the interface");
+
+    let mut buf = [0_u8; 1024];
+
+    println!("Waiting for fen...");
+    while let Ok(bytes_read) = stream.read(&mut buf).await {
+      if bytes_read <= 1 {
+        break;
+      }
+
+      let packet = decode_packet(&buf[..bytes_read]);
+
+      let fen = packet.fen;
+      println!("Received fen: '{fen}'");
+
+      let mut board = Board::from_fen(&fen);
+
+      let legal_moves = board.legal_moves();
+      let chess_move = &legal_moves[rand::random::<usize>() % legal_moves.len()];
+      let chess_move_fen = chess_move.to_fen();
+
+      println!("Sending move: '{chess_move_fen}'...");
+      stream.write_all(chess_move_fen.as_bytes()).await.expect("Couldn't send move");
+      println!("Sent move successfully");
+
+      buf.fill(0);
+
+      println!("Receiving fen...");
+    }
+
+    println!("Disconnecting");
+    stream.shutdown().await.expect("Couldn't shutdown stream");
+  } else {
+    println!("Couldn't connect to the interface");
+  }
 }
