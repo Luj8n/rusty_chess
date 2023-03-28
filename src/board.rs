@@ -579,7 +579,7 @@ impl Board {
     };
 
     if let Some(en_passant_index) = en_passant_index {
-      let x = en_passant_index % 10 - 2;
+      let x = en_passant_index % 10 - 1;
       hash ^= HASH_TABLE.en_passant[x as usize];
     }
 

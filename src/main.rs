@@ -2,8 +2,7 @@ mod board;
 
 use std::time::Instant;
 
-use board::Board;
-use std::env;
+use board::{Board, Move};
 use tokio::{
   io::{AsyncReadExt, AsyncWriteExt},
   net::TcpStream,
@@ -11,7 +10,7 @@ use tokio::{
 
 use crate::board::Color;
 
-const BLACK_SIDE: bool = true;
+const BLACK_SIDE: bool = false;
 
 fn perft_div(fen: &str, depth: usize) {
   let current_time = Instant::now();
@@ -57,7 +56,7 @@ fn perft_div(fen: &str, depth: usize) {
   println!("Speed: {} Mn/s", ((nodes as f64 / 1_000_000.) / seconds).round())
 }
 
-fn best_move(fen: &str, depth: usize) {
+fn print_best_move(fen: &str, depth: usize) {
   let current_time = Instant::now();
 
   let mut board = Board::from_fen(fen);
@@ -147,6 +146,84 @@ fn best_move(fen: &str, depth: usize) {
   println!("Time taken: {:?}", time_elapsed);
 }
 
+// It panics if there are no legal moves
+fn best_move(fen: &str, depth: usize) -> Move {
+  let mut board = Board::from_fen(fen);
+
+  fn eval(board: &mut Board, moves_left: usize) -> i32 {
+    if moves_left == 0 {
+      return board.evaluate();
+    }
+
+    let pseudo_legal_moves = board.pseudo_legal_moves();
+
+    if pseudo_legal_moves.is_empty() {
+      if board.in_check(&board.side_to_move) {
+        // In check and can't move => Checkmate
+        return if board.side_to_move == Color::White { -10000 } else { 10000 };
+      } else {
+        // Not in check and can't move => Stalemate
+        return 0;
+      }
+    }
+
+    let side_to_move = board.side_to_move.clone();
+
+    let evals = pseudo_legal_moves.into_iter().filter_map(|chess_move| {
+      board.make_move(&chess_move);
+      if !board.in_check(&side_to_move) {
+        let child_eval = eval(board, moves_left - 1);
+
+        board.undo_move(&chess_move);
+
+        Some(child_eval)
+      } else {
+        board.undo_move(&chess_move);
+
+        None
+      }
+    });
+
+    if side_to_move == Color::White {
+      evals.max().unwrap_or_else(|| {
+        if board.in_check(&side_to_move) {
+          // In check and can't move => Checkmate
+          -10000
+        } else {
+          // Not in check and can't move => Stalemate
+          0
+        }
+      })
+    } else {
+      evals.min().unwrap_or_else(|| {
+        if board.in_check(&side_to_move) {
+          // In check and can't move => Checkmate
+          10000
+        } else {
+          // Not in check and can't move => Stalemate
+          0
+        }
+      })
+    }
+  }
+
+  let side_to_move = board.side_to_move.clone();
+
+  let evals = board.legal_moves().into_iter().map(|chess_move| {
+    board.make_move(&chess_move);
+    let chess_move_eval = eval(&mut board, depth - 1);
+    board.undo_move(&chess_move);
+
+    (chess_move_eval, chess_move)
+  });
+
+  if side_to_move == Color::White {
+    evals.max_by_key(|(e, _)| *e).unwrap().1
+  } else {
+    evals.min_by_key(|(e, _)| *e).unwrap().1
+  }
+}
+
 struct Packet {
   fen: String,
   // time is in ms
@@ -156,6 +233,8 @@ struct Packet {
 
 fn decode_packet(buf: &[u8]) -> Packet {
   let packet = String::from_utf8(buf.to_vec()).expect("Couldn't parse packet");
+
+  println!("- Received packet: '{packet}'");
 
   let strings: Vec<&str> = packet.split(' ').collect();
   let fen = strings[..6].join(" ");
@@ -174,39 +253,42 @@ async fn main() {
   let port = if BLACK_SIDE { 6970 } else { 6969 };
 
   if let Ok(mut stream) = TcpStream::connect(format!("127.0.0.1:{port}")).await {
-    println!("Connected to the interface");
+    println!("- Connected to the interface");
 
     let mut buf = [0_u8; 1024];
 
-    println!("Waiting for fen...");
+    println!("- Waiting for fen...");
     while let Ok(bytes_read) = stream.read(&mut buf).await {
+      let start_time = Instant::now();
+
       if bytes_read <= 1 {
         break;
       }
 
       let packet = decode_packet(&buf[..bytes_read]);
 
-      let fen = packet.fen;
-      println!("Received fen: '{fen}'");
+      // let mut board = Board::from_fen(&fen);
+      // let legal_moves = board.legal_moves();
+      // let chess_move = &legal_moves[rand::random::<usize>() % legal_moves.len()];
 
-      let mut board = Board::from_fen(&fen);
-
-      let legal_moves = board.legal_moves();
-      let chess_move = &legal_moves[rand::random::<usize>() % legal_moves.len()];
+      let chess_move = best_move(&packet.fen, 5);
       let chess_move_fen = chess_move.to_fen();
 
-      println!("Sending move: '{chess_move_fen}'...");
+      println!("- Sending move: '{chess_move_fen}'...");
       stream.write_all(chess_move_fen.as_bytes()).await.expect("Couldn't send move");
-      println!("Sent move successfully");
+      println!("- Sent move successfully");
+
+      let time_taken = start_time.elapsed();
+      println!("- Time taken: {:?}", time_taken);
 
       buf.fill(0);
 
-      println!("Receiving fen...");
+      println!("- Receiving fen...");
     }
 
-    println!("Disconnecting");
+    println!("- Disconnecting");
     stream.shutdown().await.expect("Couldn't shutdown stream");
   } else {
-    println!("Couldn't connect to the interface");
+    println!("- Couldn't connect to the interface");
   }
 }
