@@ -5,6 +5,7 @@ use figment::{
 };
 use hashbrown::HashMap;
 // use std::collections::HashMap;
+use mimalloc::MiMalloc;
 use serde::{Deserialize, Serialize};
 use std::{println, time::Instant};
 use tokio::{
@@ -13,6 +14,9 @@ use tokio::{
 };
 
 mod board;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 // fn main() {
 //   let current_time = Instant::now();
