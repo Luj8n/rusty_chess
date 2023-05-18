@@ -10,8 +10,23 @@ const KING: i8 = 6;
 const EMPTY: i8 = 7;
 const OUTSIDE: i8 = 0;
 
+const WHITE_PAWN: i8 = 1;
+const WHITE_KNIGHT: i8 = 2;
+const WHITE_BISHOP: i8 = 3;
+const WHITE_ROOK: i8 = 4;
+const WHITE_QUEEN: i8 = 5;
+const WHITE_KING: i8 = 6;
+
+const BLACK_PAWN: i8 = -1;
+const BLACK_KNIGHT: i8 = -2;
+const BLACK_BISHOP: i8 = -3;
+const BLACK_ROOK: i8 = -4;
+const BLACK_QUEEN: i8 = -5;
+const BLACK_KING: i8 = -6;
+
 // Indices of the 10x12 board. Displayed as an 8x8 board.
 // Used for convenient board iterating
+// Convert from 8x8 to 10x12 board
 const BOARD_INDICES: [i8; 64] = [
   21, 22, 23, 24, 25, 26, 27, 28, //
   31, 32, 33, 34, 35, 36, 37, 38, //
@@ -23,137 +38,155 @@ const BOARD_INDICES: [i8; 64] = [
   91, 92, 93, 94, 95, 96, 97, 98, //
 ];
 
+// Convert from 10x12 to 8x8 board
+const BOARD_CONVERT: [usize; 120] = [
+  64, 64, 64, 64, 64, 64, 64, 64, 64, 64, //
+  64, 64, 64, 64, 64, 64, 64, 64, 64, 64, //
+  64, 0, 1, 2, 3, 4, 5, 6, 7, 64, //
+  64, 8, 9, 10, 11, 12, 13, 14, 15, 64, //
+  64, 16, 17, 18, 19, 20, 21, 22, 23, 64, //
+  64, 24, 25, 26, 27, 28, 29, 30, 31, 64, //
+  64, 32, 33, 34, 35, 36, 37, 38, 39, 64, //
+  64, 40, 41, 42, 43, 44, 45, 46, 47, 64, //
+  64, 48, 49, 50, 51, 52, 53, 54, 55, 64, //
+  64, 56, 57, 58, 59, 60, 61, 62, 63, 64, //
+  64, 64, 64, 64, 64, 64, 64, 64, 64, 64, //
+  64, 64, 64, 64, 64, 64, 64, 64, 64, 64, //
+];
+
 const WHITE_PAWN_EVAL: [i32; 64] = [
   0, 0, 0, 0, 0, 0, 0, 0, //
-  20, 20, 20, 20, 20, 20, 20, 20, //
-  15, 15, 15, 15, 15, 15, 15, 15, //
-  10, 10, 10, 10, 10, 10, 10, 10, //
-  20, 20, 20, 20, 20, 20, 20, 20, //
-  20, 20, 20, 20, 20, 20, 20, 20, //
-  5, 5, 5, 5, 5, 5, 5, 5, //
+  3, 3, 3, 3, 3, 3, 3, 3, //
+  1, 1, 1, 1, 1, 1, 1, 1, //
+  1, 1, 1, 1, 1, 1, 1, 1, //
+  2, 2, 2, 2, 2, 2, 2, 2, //
+  2, 2, 2, 2, 2, 2, 2, 2, //
+  1, 1, 1, 1, 1, 1, 1, 1, //
   0, 0, 0, 0, 0, 0, 0, 0, //
 ];
 
 const BLACK_PAWN_EVAL: [i32; 64] = [
   0, 0, 0, 0, 0, 0, 0, 0, //
-  5, 5, 5, 5, 5, 5, 5, 5, //
-  20, 20, 20, 20, 20, 20, 20, 20, //
-  20, 20, 20, 20, 20, 20, 20, 20, //
-  10, 10, 10, 10, 10, 10, 10, 10, //
-  15, 15, 15, 15, 15, 15, 15, 15, //
-  20, 20, 20, 20, 20, 20, 20, 20, //
+  1, 1, 1, 1, 1, 1, 1, 1, //
+  2, 2, 2, 2, 2, 2, 2, 2, //
+  2, 2, 2, 2, 2, 2, 2, 2, //
+  1, 1, 1, 1, 1, 1, 1, 1, //
+  1, 1, 1, 1, 1, 1, 1, 1, //
+  3, 3, 3, 3, 3, 3, 3, 3, //
   0, 0, 0, 0, 0, 0, 0, 0, //
 ];
 
 const WHITE_KNIGHT_EVAL: [i32; 64] = [
-  0, 5, 10, 10, 10, 10, 5, 0, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  10, 15, 15, 15, 15, 15, 15, 10, //
-  15, 20, 25, 30, 30, 25, 20, 15, //
-  15, 20, 25, 30, 30, 25, 20, 15, //
-  10, 15, 15, 15, 15, 15, 15, 10, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  0, 5, 10, 10, 10, 10, 5, 0, //
+  0, 0, 0, 0, 0, 0, 0, 0, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 3, 3, 4, 4, 3, 3, 1, //
+  1, 3, 4, 5, 5, 4, 3, 1, //
+  1, 3, 4, 5, 5, 4, 3, 1, //
+  1, 3, 3, 4, 4, 3, 3, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  0, 0, 0, 0, 0, 0, 0, 0, //
 ];
 
 const BLACK_KNIGHT_EVAL: [i32; 64] = [
-  0, 5, 10, 10, 10, 10, 5, 0, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  10, 15, 15, 15, 15, 15, 15, 10, //
-  15, 20, 25, 30, 30, 25, 20, 15, //
-  15, 20, 25, 30, 30, 25, 20, 15, //
-  10, 15, 15, 15, 15, 15, 15, 10, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  0, 5, 10, 10, 10, 10, 5, 0, //
+  0, 0, 0, 0, 0, 0, 0, 0, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 3, 3, 4, 4, 3, 3, 1, //
+  1, 3, 4, 5, 5, 4, 3, 1, //
+  1, 3, 4, 5, 5, 4, 3, 1, //
+  1, 3, 3, 4, 4, 3, 3, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  0, 0, 0, 0, 0, 0, 0, 0, //
 ];
 
 const WHITE_BISHOP_EVAL: [i32; 64] = [
-  5, 5, 5, 5, 5, 5, 5, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 5, 5, 5, 5, 5, 5, 5, //
+  0, 0, 1, 1, 1, 1, 0, 0, //
+  0, 2, 2, 2, 2, 2, 2, 0, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  0, 2, 2, 2, 2, 2, 2, 0, //
+  0, 0, 1, 1, 1, 1, 0, 0, //
 ];
 
 const BLACK_BISHOP_EVAL: [i32; 64] = [
-  5, 5, 5, 5, 5, 5, 5, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 5, 5, 5, 5, 5, 5, 5, //
+  0, 0, 1, 1, 1, 1, 0, 0, //
+  0, 2, 2, 2, 2, 2, 2, 0, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  0, 2, 2, 2, 2, 2, 2, 0, //
+  0, 0, 1, 1, 1, 1, 0, 0, //
 ];
 
 const WHITE_ROOK_EVAL: [i32; 64] = [
-  15, 10, 10, 10, 10, 10, 10, 15, //
-  10, 5, 5, 5, 5, 5, 5, 10, //
-  10, 5, 5, 5, 5, 5, 5, 10, //
-  10, 5, 5, 5, 5, 5, 5, 10, //
-  10, 5, 5, 5, 5, 5, 5, 10, //
-  10, 5, 5, 5, 5, 5, 5, 10, //
-  10, 5, 5, 5, 5, 5, 5, 10, //
-  15, 10, 10, 10, 10, 10, 10, 15, //
+  5, 3, 2, 2, 2, 2, 3, 5, //
+  5, 5, 5, 5, 5, 5, 5, 5, //
+  3, 2, 2, 2, 2, 2, 2, 3, //
+  2, 1, 1, 1, 1, 1, 1, 2, //
+  2, 1, 1, 1, 1, 1, 1, 2, //
+  3, 2, 2, 2, 2, 2, 2, 3, //
+  5, 5, 5, 5, 5, 5, 5, 5, //
+  5, 3, 2, 2, 2, 2, 3, 5, //
 ];
 
 const BLACK_ROOK_EVAL: [i32; 64] = [
-  15, 10, 10, 10, 10, 10, 10, 15, //
-  10, 5, 5, 5, 5, 5, 5, 10, //
-  10, 5, 5, 5, 5, 5, 5, 10, //
-  10, 5, 5, 5, 5, 5, 5, 10, //
-  10, 5, 5, 5, 5, 5, 5, 10, //
-  10, 5, 5, 5, 5, 5, 5, 10, //
-  10, 5, 5, 5, 5, 5, 5, 10, //
-  15, 10, 10, 10, 10, 10, 10, 15, //
+  5, 3, 2, 2, 2, 2, 3, 5, //
+  5, 5, 5, 5, 5, 5, 5, 5, //
+  3, 2, 2, 2, 2, 2, 2, 3, //
+  2, 1, 1, 1, 1, 1, 1, 2, //
+  2, 1, 1, 1, 1, 1, 1, 2, //
+  3, 2, 2, 2, 2, 2, 2, 3, //
+  5, 5, 5, 5, 5, 5, 5, 5, //
+  5, 3, 2, 2, 2, 2, 3, 5, //
 ];
 
 const WHITE_QUEEN_EVAL: [i32; 64] = [
-  5, 5, 5, 5, 5, 5, 5, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 5, 5, 5, 5, 5, 5, 5, //
+  1, 1, 1, 1, 1, 1, 1, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 1, 1, 1, 1, 1, 1, 1, //
 ];
 
 const BLACK_QUEEN_EVAL: [i32; 64] = [
-  5, 5, 5, 5, 5, 5, 5, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 10, 10, 10, 10, 10, 10, 5, //
-  5, 5, 5, 5, 5, 5, 5, 5, //
+  1, 1, 1, 1, 1, 1, 1, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 1, 1, 1, 1, 1, 1, 1, //
 ];
 
 const WHITE_KING_EVAL: [i32; 64] = [
-  10, 10, 5, 5, 5, 5, 10, 10, //
-  10, 5, 5, 5, 5, 5, 5, 10, //
-  10, 5, 0, 0, 0, 0, 5, 10, //
-  10, 10, 0, 0, 0, 0, 10, 10, //
-  10, 10, 5, 0, 0, 5, 10, 10, //
-  10, 10, 5, 5, 5, 5, 10, 10, //
-  20, 20, 15, 10, 10, 15, 20, 20, //
-  20, 30, 20, 10, 10, 20, 30, 20, //
+  5, 5, 3, 3, 3, 3, 5, 5, //
+  3, 5, 5, 5, 5, 5, 5, 3, //
+  3, 3, 2, 0, 0, 2, 3, 3, //
+  3, 2, 0, 0, 0, 0, 2, 3, //
+  3, 2, 0, 0, 0, 0, 2, 3, //
+  5, 3, 2, 1, 1, 2, 3, 5, //
+  10, 5, 5, 3, 3, 5, 5, 10, //
+  5, 10, 15, 5, 3, 5, 15, 10, //
 ];
 
 const BLACK_KING_EVAL: [i32; 64] = [
-  20, 30, 20, 10, 10, 20, 30, 20, //
-  20, 20, 15, 10, 10, 15, 20, 20, //
-  10, 10, 5, 5, 5, 5, 10, 10, //
-  10, 10, 5, 0, 0, 5, 10, 10, //
-  10, 10, 0, 0, 0, 0, 10, 10, //
-  10, 5, 0, 0, 0, 0, 5, 10, //
-  10, 5, 5, 5, 5, 5, 5, 10, //
-  10, 10, 5, 5, 5, 5, 10, 10, //
+  5, 10, 15, 5, 3, 5, 15, 10, //
+  10, 5, 5, 3, 3, 5, 5, 10, //
+  5, 3, 2, 1, 1, 2, 3, 5, //
+  3, 2, 0, 0, 0, 0, 2, 3, //
+  3, 2, 0, 0, 0, 0, 2, 3, //
+  3, 3, 2, 0, 0, 2, 3, 3, //
+  3, 5, 5, 5, 5, 5, 5, 3, //
+  5, 5, 3, 3, 3, 3, 5, 5, //
 ];
+
+const POSSIBLE_CASTLING_VALUE: i32 = 5;
 
 const PAWN_VALUE: i32 = 100;
 const KNIGHT_VALUE: i32 = 350;
@@ -165,49 +198,48 @@ const QUEEN_VALUE: i32 = 1000;
 pub struct HashTable {
   // One number for each piece at each square
   // White pieces: pawn, knight, bishop, rook, queen, king, and then black pieces
-  pieces: [[u128; 12]; 64],
+  pieces: [[u64; 12]; 64],
 
   // One number to indicate the side to move is black
-  black_to_move: u128,
+  black_to_move: u64,
 
   // Four numbers to indicate the castling rights
-  white_king_castle: u128,
-  white_queen_castle: u128,
-  black_king_castle: u128,
-  black_queen_castle: u128,
+  white_king_castle: u64,
+  white_queen_castle: u64,
+  black_king_castle: u64,
+  black_queen_castle: u64,
 
-  // Eight numbers to indicate the file of a valid En passant square
-  en_passant: [u128; 8],
+  // Eight numbers to indicate the file of a valid en passant square
+  en_passant: [u64; 8],
 }
 
 impl HashTable {
   fn new() -> HashTable {
-    let mut pieces = [[0_u128; 12]; 64];
+    let mut pieces = [[0_u64; 12]; 64];
 
-    let mut rng = StdRng::seed_from_u64(0);
-    let mut rand_u128 = || -> u128 { ((rng.next_u64() as u128) << 64) | (rng.next_u64() as u128) };
+    let mut rng = StdRng::seed_from_u64(572114346);
 
     let mut position = 0;
     while position < 64 {
       let mut piece = 0;
       while piece < 12 {
-        pieces[position][piece] = rand_u128();
+        pieces[position][piece] = rng.next_u64();
         piece += 1;
       }
       position += 1;
     }
 
-    let black_to_move = rand_u128();
-    let white_king_castle = rand_u128();
-    let white_queen_castle = rand_u128();
-    let black_king_castle = rand_u128();
-    let black_queen_castle = rand_u128();
+    let black_to_move = rng.next_u64();
+    let white_king_castle = rng.next_u64();
+    let white_queen_castle = rng.next_u64();
+    let black_king_castle = rng.next_u64();
+    let black_queen_castle = rng.next_u64();
 
-    let mut en_passant = [0_u128; 8];
+    let mut en_passant = [0_u64; 8];
 
     let mut file = 0;
     while file < 8 {
-      en_passant[file] = rand_u128();
+      en_passant[file] = rng.next_u64();
       file += 1;
     }
 
@@ -416,12 +448,55 @@ impl Move {
     }
   }
 
-  // TODO: from_fen
+  fn evaluate(&self, board: &Board) -> i32 {
+    const fn pv(piece: i8) -> i32 {
+      let mut v = match piece.abs() {
+        PAWN => PAWN_VALUE,
+        KNIGHT => KNIGHT_VALUE,
+        BISHOP => BISHOP_VALUE,
+        ROOK => ROOK_VALUE,
+        QUEEN => QUEEN_VALUE,
+        _ => 0,
+      };
+      if piece < 0 {
+        v *= -1
+      }
+      v
+    }
+    match *self {
+      Move::Normal { .. } => 0,
+      Move::PawnPush { .. } => 10,
+      Move::DoublePawnPush { .. } => 20,
+      Move::Castling(_) => 30,
+      Move::EnPassant { .. } => 40,
+      Move::Promotion { selected_piece, .. } => pv(selected_piece),
+      Move::PromotionWithCapture { selected_piece, to, .. } => pv(selected_piece) - pv(board.pieces[to as usize]),
+      Move::Capture { from, to, .. } => pv(board.pieces[from as usize]) - pv(board.pieces[to as usize]),
+    }
+  }
+
+  fn evaluate_relative(&self, board: &Board) -> i32 {
+    if board.side_to_move == Color::White {
+      self.evaluate(board)
+    } else {
+      -self.evaluate(board)
+    }
+  }
+
+  // Returns whether a move captures a piece
+  pub fn is_capture(&self) -> bool {
+    match *self {
+      Move::Capture { .. } | Move::EnPassant { .. } | Move::PromotionWithCapture { .. } => true,
+      Move::Normal { .. } | Move::PawnPush { .. } | Move::DoublePawnPush { .. } | Move::Promotion { .. } | Move::Castling(_) => {
+        false
+      }
+    }
+  }
 }
 
-// Stores additional board
+// Stores additional board information
 #[derive(Clone, Debug)]
-struct BoardMeta {
+pub struct BoardMeta {
   // Castling rights. It is true if it is legal to do it.
   white_king_castle: bool,
   white_queen_castle: bool,
@@ -436,6 +511,9 @@ struct BoardMeta {
   // The halfmove clock specifies a decimal number of half moves with respect to the 50 move draw rule. (https://www.chessprogramming.org/Fifty-move_Rule)
   // It is reset to zero after a capture or a pawn move and incremented otherwise.
   halfmove_clock: u8,
+
+  // Zobrist hash (https://www.chessprogramming.org/Zobrist_Hashing)
+  pub hash: u64,
 }
 
 // Stores all the game information
@@ -451,7 +529,7 @@ pub struct Board {
 
   // Stores previous meta information, which is needed after undoing a move.
   // It isn't needed, it could be generated given a move to undo but it's more convenient.
-  // TODO: maybe remove it
+  // TODO: maybe consider removing it
   undo_list: Vec<BoardMeta>,
 
   // Whether it's white's turn to move
@@ -463,14 +541,13 @@ pub struct Board {
 
   // Stores additional information
   // Gets updated with every move
-  meta: BoardMeta,
-
-  // Zobrist hash (https://www.chessprogramming.org/Zobrist_Hashing)
-  hash: u128,
+  pub meta: BoardMeta,
 
   // Position of kings for faster checking whether a king is safe
   white_king_index: i8,
   black_king_index: i8,
+
+  previous_hashes: Vec<u64>,
 }
 
 impl Default for Board {
@@ -481,6 +558,10 @@ impl Default for Board {
 
 impl Board {
   pub fn from_fen(fen: &str) -> Board {
+    Self::from_fen_saved(fen, vec![])
+  }
+
+  pub fn from_fen_saved(fen: &str, previous_hashes: Vec<u64>) -> Board {
     let fields: Vec<&str> = fen.split(' ').collect();
     let ranks: Vec<&str> = fields[0].split('/').collect();
 
@@ -489,7 +570,7 @@ impl Board {
     let mut white_king_index: Option<i8> = None;
     let mut black_king_index: Option<i8> = None;
 
-    let mut hash: u128 = 0;
+    let mut hash: u64 = 0;
 
     for (i, s) in ranks.iter().enumerate() {
       let y = 2 + i;
@@ -595,14 +676,15 @@ impl Board {
         black_queen_castle,
         en_passant_index,
         halfmove_clock: fields[4].parse().unwrap(),
+        hash,
       },
-      hash,
       white_king_index: white_king_index.expect("Incorrect fen"),
       black_king_index: black_king_index.expect("Incorrect fen"),
+      previous_hashes,
     }
   }
 
-  fn to_table(&self) -> String {
+  pub fn to_table(&self) -> String {
     let mut s = String::new();
 
     for y in 2..=9 {
@@ -928,9 +1010,13 @@ impl Board {
 
   // Generates pseudo-legal moves. It means that it could leave its own king in check.
   // Includes castling (it also can be pseudo-legal)
-  // However, the fifty-move rule is checked
+  // However, the fifty-move and repetition rules are checked
   pub fn pseudo_legal_moves(&self) -> Vec<Move> {
-    if self.meta.halfmove_clock >= 100 {
+    if self.meta.halfmove_clock >= 100
+      || self.undo_list.iter().filter(|m| m.hash == self.meta.hash).count()
+        + self.previous_hashes.iter().filter(|h| **h == self.meta.hash).count()
+        >= 2
+    {
       return vec![];
     }
 
@@ -988,16 +1074,133 @@ impl Board {
       }
     }
 
+    piece_moves.sort_by_cached_key(|m| -m.evaluate_relative(self));
+
     piece_moves
   }
 
-  // Updates meta information: castling rights, en passant square, and the halfmove clock
+  // Updates meta information: castling rights, en passant square, the halfmove clock, and the hash
   fn update_meta(&mut self, chess_move: &Move) {
-    // Note: the board is already updated, so can't depend on it
-
-    // save the current meta information
+    // Save the current meta information
     self.undo_list.push(self.meta.clone());
 
+    // Get piece's index for the HASH_TABLE
+    fn get_piece_index(piece: i8) -> usize {
+      let mut piece_index = match piece.abs() {
+        PAWN => 0,
+        KNIGHT => 1,
+        BISHOP => 2,
+        ROOK => 3,
+        QUEEN => 4,
+        KING => 5,
+        _ => panic!(),
+      };
+      if piece < 0 {
+        piece_index += 6;
+      }
+      piece_index
+    }
+
+    // Updates board's (just the pieces) part of the hash
+    match *chess_move {
+      Move::Normal { from, to } | Move::PawnPush { from, to } | Move::DoublePawnPush { from, to } => {
+        let piece = self.pieces[from as usize];
+        let piece_index = get_piece_index(piece);
+
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[from as usize]][piece_index];
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[to as usize]][piece_index];
+      }
+      Move::Capture {
+        from,
+        to,
+        captured_piece,
+      } => {
+        let piece = self.pieces[from as usize];
+        let piece_index = get_piece_index(piece);
+        let captured_piece_index = get_piece_index(captured_piece);
+
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[from as usize]][piece_index];
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[to as usize]][piece_index];
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[to as usize]][captured_piece_index];
+      }
+      Move::EnPassant {
+        from,
+        to,
+        captured_index,
+        captured_piece,
+      } => {
+        let piece = self.pieces[from as usize];
+        let piece_index = get_piece_index(piece);
+        let captured_piece_index = get_piece_index(captured_piece);
+
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[from as usize]][piece_index];
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[to as usize]][piece_index];
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[captured_index as usize]][captured_piece_index];
+      }
+      Move::Promotion {
+        from,
+        to,
+        selected_piece,
+      } => {
+        let piece = self.pieces[from as usize];
+        let piece_index = get_piece_index(piece);
+        let selected_piece_index = get_piece_index(selected_piece);
+
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[from as usize]][piece_index];
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[to as usize]][selected_piece_index];
+      }
+      Move::PromotionWithCapture {
+        from,
+        to,
+        selected_piece,
+        captured_piece,
+      } => {
+        let piece = self.pieces[from as usize];
+        let piece_index = get_piece_index(piece);
+        let selected_piece_index = get_piece_index(selected_piece);
+        let captured_piece_index = get_piece_index(captured_piece);
+
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[from as usize]][piece_index];
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[to as usize]][selected_piece_index];
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[to as usize]][captured_piece_index];
+      }
+      Move::Castling(CastlingSide::WhiteKing) => {
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[95]][5];
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[98]][3];
+
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[96]][3];
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[97]][5];
+      }
+      Move::Castling(CastlingSide::WhiteQueen) => {
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[95]][5];
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[91]][3];
+
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[94]][3];
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[93]][5];
+      }
+      Move::Castling(CastlingSide::BlackKing) => {
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[25]][11];
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[28]][9];
+
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[26]][9];
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[27]][11];
+      }
+      Move::Castling(CastlingSide::BlackQueen) => {
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[25]][11];
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[21]][9];
+
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[24]][9];
+        self.meta.hash ^= HASH_TABLE.pieces[BOARD_CONVERT[23]][11];
+      }
+    }
+
+    // If en passant square existed, remove it from the hash
+    if let Some(en_passant_index) = self.meta.en_passant_index {
+      let x = en_passant_index % 10 - 1;
+      self.meta.hash ^= HASH_TABLE.en_passant[x as usize];
+    }
+
+    // Updates en passant square and the halfmove clock
     match *chess_move {
       Move::Normal { from: _, to: _ } => {
         self.meta.en_passant_index = None;
@@ -1039,6 +1242,18 @@ impl Board {
       }
     }
 
+    // If en passant square exists now, add it to the hash
+    if let Some(en_passant_index) = self.meta.en_passant_index {
+      let x = en_passant_index % 10 - 1;
+      self.meta.hash ^= HASH_TABLE.en_passant[x as usize];
+    }
+
+    let previous_white_king_castle = self.meta.white_king_castle;
+    let previous_white_queen_castle = self.meta.white_queen_castle;
+    let previous_black_king_castle = self.meta.black_king_castle;
+    let previous_black_queen_castle = self.meta.black_queen_castle;
+
+    // Updates castling rights
     match *chess_move {
       Move::Normal { from, to: _ } => {
         if from == 95 {
@@ -1109,6 +1324,23 @@ impl Board {
       }
       _ => {}
     }
+
+    // If any of the castling rights changed, update the hash
+    if previous_white_king_castle != self.meta.white_king_castle {
+      self.meta.hash ^= HASH_TABLE.white_king_castle;
+    }
+    if previous_white_queen_castle != self.meta.white_queen_castle {
+      self.meta.hash ^= HASH_TABLE.white_queen_castle;
+    }
+    if previous_black_king_castle != self.meta.black_king_castle {
+      self.meta.hash ^= HASH_TABLE.black_king_castle;
+    }
+    if previous_black_queen_castle != self.meta.black_queen_castle {
+      self.meta.hash ^= HASH_TABLE.black_queen_castle;
+    }
+
+    // Update the hash of the current player
+    self.meta.hash ^= HASH_TABLE.black_to_move;
   }
 
   // Makes a move, which updates the board and meta information.
@@ -1143,6 +1375,8 @@ impl Board {
       }
       _ => {}
     }
+
+    self.update_meta(chess_move);
 
     // move pieces
     match *chess_move {
@@ -1210,10 +1444,6 @@ impl Board {
         self.pieces[23] = -KING;
       }
     }
-
-    self.update_meta(chess_move);
-
-    // self.update_hash(chess_move);
 
     if self.side_to_move == Color::Black {
       self.fullmove_counter += 1;
@@ -1471,9 +1701,8 @@ impl Board {
     false
   }
 
+  // Returns a fen string of the current position. Example fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
   pub fn to_fen(&self) -> String {
-    // rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
-
     let mut piece_placement: Vec<String> = vec![];
 
     for y in 0..8 {
@@ -1558,14 +1787,22 @@ impl Board {
 
   // Positive is better for white, negative for black
   pub fn evaluate(&self) -> i32 {
+    if self.meta.halfmove_clock >= 100
+      || self.undo_list.iter().filter(|m| m.hash == self.meta.hash).count()
+        + self.previous_hashes.iter().filter(|h| **h == self.meta.hash).count()
+        >= 2
+    {
+      return 0;
+    }
+
     let mut eval = 0;
 
     for index in BOARD_INDICES {
       let square = self.pieces[index as usize];
 
-      if let Some(color) = get_color(square) {
-        let mut value = 0;
-        value += match square.abs() {
+      if get_color(square).is_some() {
+        let mut piece_value = 0;
+        piece_value += match square.abs() {
           PAWN => PAWN_VALUE,
           KNIGHT => KNIGHT_VALUE,
           BISHOP => BISHOP_VALUE,
@@ -1573,78 +1810,51 @@ impl Board {
           QUEEN => QUEEN_VALUE,
           _ => 0,
         };
+        piece_value *= square.signum() as i32;
+        eval += piece_value;
 
-        // TODO
-        // match square.abs() {
-        //   PAWN => ,
-        //   KNIGHT => ,
-        //   BISHOP => ,
-        //   ROOK => ,
-        //   QUEEN => ,
-        //   _ => ,
-        // }
-
-        eval += value * square.signum() as i32;
+        let position_eval_board = match square {
+          WHITE_PAWN => WHITE_PAWN_EVAL,
+          WHITE_KNIGHT => WHITE_KNIGHT_EVAL,
+          WHITE_BISHOP => WHITE_BISHOP_EVAL,
+          WHITE_ROOK => WHITE_ROOK_EVAL,
+          WHITE_QUEEN => WHITE_QUEEN_EVAL,
+          WHITE_KING => WHITE_KING_EVAL,
+          BLACK_PAWN => BLACK_PAWN_EVAL,
+          BLACK_KNIGHT => BLACK_KNIGHT_EVAL,
+          BLACK_BISHOP => BLACK_BISHOP_EVAL,
+          BLACK_ROOK => BLACK_ROOK_EVAL,
+          BLACK_QUEEN => BLACK_QUEEN_EVAL,
+          BLACK_KING => BLACK_KING_EVAL,
+          _ => panic!(),
+        };
+        let position_eval = position_eval_board[BOARD_CONVERT[index as usize]] * square.signum() as i32;
+        eval += position_eval;
       }
+    }
+
+    if self.meta.white_king_castle {
+      eval += POSSIBLE_CASTLING_VALUE;
+    }
+    if self.meta.white_queen_castle {
+      eval += POSSIBLE_CASTLING_VALUE;
+    }
+    if self.meta.black_king_castle {
+      eval += -POSSIBLE_CASTLING_VALUE;
+    }
+    if self.meta.black_queen_castle {
+      eval += -POSSIBLE_CASTLING_VALUE;
     }
 
     eval
   }
 
-  // This function should be executed before updating the board
-  fn update_hash(&mut self, chess_move: &Move) {
-    match *chess_move {
-      Move::Normal { from, to } => {
-        let piece = self.pieces[from as usize];
-        let mut piece_index = match piece.abs() {
-          PAWN => 0,
-          KNIGHT => 1,
-          BISHOP => 2,
-          ROOK => 3,
-          QUEEN => 4,
-          KING => 5,
-          _ => panic!(),
-        };
-        if piece < 0 {
-          piece_index += 6;
-        }
-
-        self.hash ^= HASH_TABLE.pieces[from as usize][piece_index];
-      }
-      Move::PawnPush { from: _, to: _ }
-      | Move::Capture {
-        from: _,
-        to: _,
-        captured_piece: _,
-      }
-      | Move::EnPassant {
-        from: _,
-        to: _,
-        captured_index: _,
-        captured_piece: _,
-      }
-      | Move::Promotion {
-        from: _,
-        to: _,
-        selected_piece: _,
-      }
-      | Move::PromotionWithCapture {
-        from: _,
-        to: _,
-        selected_piece: _,
-        captured_piece: _,
-      } => {
-        self.meta.en_passant_index = None;
-        self.meta.halfmove_clock = 0;
-      }
-      Move::DoublePawnPush { from, to } => {
-        self.meta.en_passant_index = Some(((from as usize + to as usize) / 2) as i8);
-        self.meta.halfmove_clock = 0;
-      }
-      Move::Castling(_) => {
-        self.meta.en_passant_index = None;
-        self.meta.halfmove_clock += 1;
-      }
+  // Positive is better for who's turn it is
+  pub fn evaluate_relative(&self) -> i32 {
+    if self.side_to_move == Color::White {
+      self.evaluate()
+    } else {
+      -self.evaluate()
     }
   }
 }
@@ -1839,17 +2049,16 @@ mod tests {
     fn test_hashing(fen: &str) {
       let mut board = Board::from_fen(fen);
       let side_to_move = board.side_to_move.clone();
-      let expected_hash = board.hash;
+      let expected_hash = board.meta.hash;
 
       for chess_move in board.pseudo_legal_moves() {
         board.make_move(&chess_move);
-        assert_ne!(board.hash, expected_hash);
+        assert_ne!(board.meta.hash, expected_hash);
         let is_legal = !board.in_check(&side_to_move);
         board.undo_move(&chess_move);
 
         if is_legal {
-          // TODO: maybe check hash if only move is legal
-          assert_eq!(board.hash, expected_hash);
+          assert_eq!(board.meta.hash, expected_hash);
         }
       }
     }
@@ -1864,20 +2073,102 @@ mod tests {
     test_hashing("r3k2r/1b4bq/8/8/8/8/7B/R3K2R w KQkq - 0 1");
 
     let mut board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+
     board.make_move(&Move::normal(square_to_index("g1"), square_to_index("f3")));
-    board.make_move(&Move::normal(square_to_index("d7"), square_to_index("d6")));
-    board.make_move(&Move::pawn_push(square_to_index("h1"), square_to_index("g1")));
+    assert_eq!(
+      board.meta.hash,
+      Board::from_fen("rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 0 1")
+        .meta
+        .hash
+    );
+
+    board.make_move(&Move::pawn_push(square_to_index("d7"), square_to_index("d6")));
+    assert_eq!(
+      board.meta.hash,
+      Board::from_fen("rnbqkbnr/ppp1pppp/3p4/8/8/5N2/PPPPPPPP/RNBQKB1R w KQkq - 0 1")
+        .meta
+        .hash
+    );
+
+    board.make_move(&Move::normal(square_to_index("h1"), square_to_index("g1")));
+    assert_eq!(
+      board.meta.hash,
+      Board::from_fen("rnbqkbnr/ppp1pppp/3p4/8/8/5N2/PPPPPPPP/RNBQKBR1 b Qkq - 0 1")
+        .meta
+        .hash
+    );
+
     board.make_move(&Move::double_pawn_push(square_to_index("b7"), square_to_index("b5")));
+    assert_eq!(
+      board.meta.hash,
+      Board::from_fen("rnbqkbnr/p1p1pppp/3p4/1p6/8/5N2/PPPPPPPP/RNBQKBR1 w Qkq b6 0 1")
+        .meta
+        .hash
+    );
+
     board.make_move(&Move::double_pawn_push(square_to_index("c2"), square_to_index("c4")));
+    assert_eq!(
+      board.meta.hash,
+      Board::from_fen("rnbqkbnr/p1p1pppp/3p4/1p6/2P5/5N2/PP1PPPPP/RNBQKBR1 b Qkq c3 0 1")
+        .meta
+        .hash
+    );
+
     board.make_move(&Move::normal(square_to_index("e8"), square_to_index("d7")));
+    assert_eq!(
+      board.meta.hash,
+      Board::from_fen("rnbq1bnr/p1pkpppp/3p4/1p6/2P5/5N2/PP1PPPPP/RNBQKBR1 w Q - 0 1")
+        .meta
+        .hash
+    );
+
     board.make_move(&Move::capture(
       square_to_index("c4"),
       square_to_index("b5"),
       -crate::board::PAWN,
     ));
-    board.make_move(&Move::double_pawn_push(square_to_index("h2"), square_to_index("h4")));
+    assert_eq!(
+      board.meta.hash,
+      Board::from_fen("rnbq1bnr/p1pkpppp/3p4/1P6/8/5N2/PP1PPPPP/RNBQKBR1 b Q - 0 1")
+        .meta
+        .hash
+    );
 
-    let expected_hash = Board::from_fen("rnbq1bnr/p1pkpppp/3p4/1P6/7P/5N2/PP1PPPP1/RNBQKBR1 b Q h3 0 1").hash;
-    assert_eq!(board.hash, expected_hash);
+    board.make_move(&Move::pawn_push(square_to_index("g7"), square_to_index("g6")));
+    assert_eq!(
+      board.meta.hash,
+      Board::from_fen("rnbq1bnr/p1pkpp1p/3p2p1/1P6/8/5N2/PP1PPPPP/RNBQKBR1 w Q - 0 1")
+        .meta
+        .hash
+    );
+
+    board.make_move(&Move::double_pawn_push(square_to_index("h2"), square_to_index("h4")));
+    assert_eq!(
+      board.meta.hash,
+      Board::from_fen("rnbq1bnr/p1pkpp1p/3p2p1/1P6/7P/5N2/PP1PPPP1/RNBQKBR1 b Q h3 0 1")
+        .meta
+        .hash
+    );
+
+    board.make_move(&Move::double_pawn_push(square_to_index("c7"), square_to_index("c5")));
+    assert_eq!(
+      board.meta.hash,
+      Board::from_fen("rnbq1bnr/p2kpp1p/3p2p1/1Pp5/7P/5N2/PP1PPPP1/RNBQKBR1 w Q c6 0 1")
+        .meta
+        .hash
+    );
+
+    board.make_move(&Move::en_passant(
+      square_to_index("b5"),
+      square_to_index("c6"),
+      square_to_index("c5"),
+      -crate::board::PAWN,
+    ));
+    assert_eq!(
+      board.meta.hash,
+      Board::from_fen("rnbq1bnr/p2kpp1p/2Pp2p1/8/7P/5N2/PP1PPPP1/RNBQKBR1 b Q - 0 1")
+        .meta
+        .hash
+    );
   }
 }
