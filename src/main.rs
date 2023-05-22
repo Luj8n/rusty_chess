@@ -1,3 +1,7 @@
+#![feature(const_mut_refs)]
+#![feature(const_eval_limit)]
+#![const_eval_limit = "10000000"]
+
 use board::{Board, Color, Move};
 use figment::{
   providers::{Format, Serialized, Toml},
@@ -13,6 +17,7 @@ use tokio::{
   net::TcpStream,
 };
 
+mod bitboard;
 mod board;
 
 #[global_allocator]
@@ -229,8 +234,6 @@ fn mtdf(board: &mut Board, first: i32, depth: i32, tt: &mut TranspositionTable) 
 // }
 
 fn find_best_move(board: &mut Board, time_given: u128, tt: &mut TranspositionTable) -> Move {
-  // let mut tt: TranspositionTable = HashMap::new();
-
   let (mut best_eval, best_move) = iterative_deepening(board, time_given, tt);
 
   if board.side_to_move == Color::Black {
@@ -243,12 +246,74 @@ fn find_best_move(board: &mut Board, time_given: u128, tt: &mut TranspositionTab
   best_move
 }
 
-fn iterative_deepening(board: &mut Board, time_given: u128, tt: &mut TranspositionTable) -> (i32, Move) {
+#[allow(clippy::too_many_arguments)]
+fn aspiration(
+  board: &mut Board,
+  time_given: u128,
+  tt: &mut TranspositionTable,
+  stopped: &mut bool,
+  start: &Instant,
+  depth: i32,
+  prev_value: i32,
+  window: i32,
+) -> i32 {
+  let alpha = prev_value - window;
+  let beta = prev_value + window;
+
+  let mut value = alpha_beta_tt_i(board, tt, alpha, beta, depth, stopped, start, time_given);
+
+  if value >= beta {
+    value = alpha_beta_tt_i(board, tt, value, INF, depth, stopped, start, time_given);
+  } else if value <= alpha {
+    value = alpha_beta_tt_i(board, tt, -INF, value, depth, stopped, start, time_given);
+  }
+
+  value
+}
+
+fn iterative_deepening_asp(board: &mut Board, time_given: u128, tt: &mut TranspositionTable) -> (i32, Move) {
   let mut best = 0;
   let mut best_move: Option<Move> = None;
   let started_time = Instant::now();
 
   for depth in 1..=100 {
+    let mut stopped = false;
+    let eval = aspiration(board, time_given, tt, &mut stopped, &started_time, depth, best, 100);
+
+    if stopped {
+      println!("- Time limit reached");
+      println!("- Fully searched to depth {}", depth - 1);
+      break;
+    }
+
+    let tte = tt.get(&board.meta.hash).expect("Root node not in TT");
+    best = eval;
+    best_move = tte.best_move.clone();
+
+    let dt = started_time.elapsed();
+
+    if best >= CHECKMATE {
+      println!("- Found checkmate");
+      println!("- Searched to depth {}", depth);
+      break;
+    }
+
+    if dt.as_millis() >= time_given {
+      println!("- Time limit exceeded");
+      println!("- Searched to depth {}", depth);
+      break;
+    }
+  }
+
+  (best, best_move.unwrap())
+}
+
+fn iterative_deepening(board: &mut Board, time_given: u128, tt: &mut TranspositionTable) -> (i32, Move) {
+  let mut best = 0;
+  let mut best_move: Option<Move> = None;
+  let started_time = Instant::now();
+
+  for depth in 1..=6 {
     let mut stopped = false;
     let eval = alpha_beta_tt_i(board, tt, -INF, INF, depth, &mut stopped, &started_time, time_given);
     if stopped {
@@ -495,6 +560,7 @@ fn alpha_beta_tt(board: &mut Board, tt: &mut TranspositionTable, mut alpha: i32,
   best
 }
 
+#[allow(clippy::too_many_arguments)]
 fn alpha_beta_tt_i(
   board: &mut Board,
   tt: &mut TranspositionTable,
@@ -511,7 +577,8 @@ fn alpha_beta_tt_i(
   }
 
   let mut value: i32;
-  if let Some(tte) = tt.get(&board.meta.hash) {
+  let option_tte = tt.get(&board.meta.hash);
+  if let Some(tte) = option_tte {
     if tte.depth >= depth {
       if tte.typ == EXACT_VALUE {
         return tte.value;
@@ -558,6 +625,31 @@ fn alpha_beta_tt_i(
   let mut cant_move = true;
   let mut best: i32 = -INF;
   let mut best_move: Option<Move> = None;
+
+  if let Some(tte) = option_tte {
+    if let Some(good_move) = &tte.best_move {
+      let some_move = good_move.clone();
+
+      board.make_move(&some_move);
+      value = -alpha_beta_tt_i(board, tt, -beta, -alpha, depth - 1, stopped, start, limit);
+      board.undo_move(&some_move);
+      if *stopped {
+        return 0;
+      }
+
+      if value > best {
+        best = value;
+        best_move = Some(some_move);
+      }
+      if best > alpha {
+        alpha = best;
+      }
+      if best >= beta {
+        save_tte(board, tt, best, depth, alpha, beta, best_move);
+        return best;
+      }
+    }
+  }
 
   for pseudo_legal_move in pseudo_legal_moves {
     board.make_move(&pseudo_legal_move);
