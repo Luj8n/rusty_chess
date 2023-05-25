@@ -1074,7 +1074,7 @@ impl Board {
       }
     }
 
-    piece_moves.sort_unstable_by_key(|m| -m.evaluate_relative(self));
+    piece_moves.sort_by_cached_key(|m| -m.evaluate_relative(self));
 
     piece_moves
   }

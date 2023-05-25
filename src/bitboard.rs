@@ -251,6 +251,146 @@ fn bitboard_to_square(bitboard: u64) -> &'static str {
   }
 }
 
+const WHITE_PAWN_EVAL: [i32; 64] = [
+  0, 0, 0, 0, 0, 0, 0, 0, //
+  3, 3, 3, 3, 3, 3, 3, 3, //
+  1, 1, 1, 1, 1, 1, 1, 1, //
+  1, 1, 1, 1, 1, 1, 1, 1, //
+  2, 2, 2, 2, 2, 2, 2, 2, //
+  2, 2, 2, 2, 2, 2, 2, 2, //
+  1, 1, 1, 1, 1, 1, 1, 1, //
+  0, 0, 0, 0, 0, 0, 0, 0, //
+];
+
+const BLACK_PAWN_EVAL: [i32; 64] = [
+  0, 0, 0, 0, 0, 0, 0, 0, //
+  1, 1, 1, 1, 1, 1, 1, 1, //
+  2, 2, 2, 2, 2, 2, 2, 2, //
+  2, 2, 2, 2, 2, 2, 2, 2, //
+  1, 1, 1, 1, 1, 1, 1, 1, //
+  1, 1, 1, 1, 1, 1, 1, 1, //
+  3, 3, 3, 3, 3, 3, 3, 3, //
+  0, 0, 0, 0, 0, 0, 0, 0, //
+];
+
+const WHITE_KNIGHT_EVAL: [i32; 64] = [
+  0, 0, 0, 0, 0, 0, 0, 0, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 3, 3, 4, 4, 3, 3, 1, //
+  1, 3, 4, 5, 5, 4, 3, 1, //
+  1, 3, 4, 5, 5, 4, 3, 1, //
+  1, 3, 3, 4, 4, 3, 3, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  0, 0, 0, 0, 0, 0, 0, 0, //
+];
+
+const BLACK_KNIGHT_EVAL: [i32; 64] = [
+  0, 0, 0, 0, 0, 0, 0, 0, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 3, 3, 4, 4, 3, 3, 1, //
+  1, 3, 4, 5, 5, 4, 3, 1, //
+  1, 3, 4, 5, 5, 4, 3, 1, //
+  1, 3, 3, 4, 4, 3, 3, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  0, 0, 0, 0, 0, 0, 0, 0, //
+];
+
+const WHITE_BISHOP_EVAL: [i32; 64] = [
+  0, 0, 1, 1, 1, 1, 0, 0, //
+  0, 2, 2, 2, 2, 2, 2, 0, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  0, 2, 2, 2, 2, 2, 2, 0, //
+  0, 0, 1, 1, 1, 1, 0, 0, //
+];
+
+const BLACK_BISHOP_EVAL: [i32; 64] = [
+  0, 0, 1, 1, 1, 1, 0, 0, //
+  0, 2, 2, 2, 2, 2, 2, 0, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  0, 2, 2, 2, 2, 2, 2, 0, //
+  0, 0, 1, 1, 1, 1, 0, 0, //
+];
+
+const WHITE_ROOK_EVAL: [i32; 64] = [
+  5, 3, 2, 2, 2, 2, 3, 5, //
+  5, 5, 5, 5, 5, 5, 5, 5, //
+  3, 2, 2, 2, 2, 2, 2, 3, //
+  2, 1, 1, 1, 1, 1, 1, 2, //
+  2, 1, 1, 1, 1, 1, 1, 2, //
+  3, 2, 2, 2, 2, 2, 2, 3, //
+  5, 5, 5, 5, 5, 5, 5, 5, //
+  5, 3, 2, 2, 2, 2, 3, 5, //
+];
+
+const BLACK_ROOK_EVAL: [i32; 64] = [
+  5, 3, 2, 2, 2, 2, 3, 5, //
+  5, 5, 5, 5, 5, 5, 5, 5, //
+  3, 2, 2, 2, 2, 2, 2, 3, //
+  2, 1, 1, 1, 1, 1, 1, 2, //
+  2, 1, 1, 1, 1, 1, 1, 2, //
+  3, 2, 2, 2, 2, 2, 2, 3, //
+  5, 5, 5, 5, 5, 5, 5, 5, //
+  5, 3, 2, 2, 2, 2, 3, 5, //
+];
+
+const WHITE_QUEEN_EVAL: [i32; 64] = [
+  1, 1, 1, 1, 1, 1, 1, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 1, 1, 1, 1, 1, 1, 1, //
+];
+
+const BLACK_QUEEN_EVAL: [i32; 64] = [
+  1, 1, 1, 1, 1, 1, 1, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 2, 2, 2, 2, 2, 2, 1, //
+  1, 1, 1, 1, 1, 1, 1, 1, //
+];
+
+const WHITE_KING_EVAL: [i32; 64] = [
+  5, 5, 3, 3, 3, 3, 5, 5, //
+  3, 5, 5, 5, 5, 5, 5, 3, //
+  3, 3, 2, 0, 0, 2, 3, 3, //
+  3, 2, 0, 0, 0, 0, 2, 3, //
+  3, 2, 0, 0, 0, 0, 2, 3, //
+  5, 3, 2, 1, 1, 2, 3, 5, //
+  10, 5, 5, 3, 3, 5, 5, 10, //
+  5, 10, 15, 5, 3, 5, 15, 10, //
+];
+
+const BLACK_KING_EVAL: [i32; 64] = [
+  5, 10, 15, 5, 3, 5, 15, 10, //
+  10, 5, 5, 3, 3, 5, 5, 10, //
+  5, 3, 2, 1, 1, 2, 3, 5, //
+  3, 2, 0, 0, 0, 0, 2, 3, //
+  3, 2, 0, 0, 0, 0, 2, 3, //
+  3, 3, 2, 0, 0, 2, 3, 3, //
+  3, 5, 5, 5, 5, 5, 5, 3, //
+  5, 5, 3, 3, 3, 3, 5, 5, //
+];
+
+const POSSIBLE_CASTLING_VALUE: i32 = 5;
+
+const PAWN_VALUE: i32 = 100;
+const KNIGHT_VALUE: i32 = 350;
+const BISHOP_VALUE: i32 = 350;
+const ROOK_VALUE: i32 = 525;
+const QUEEN_VALUE: i32 = 1000;
+
 pub fn print_bitboard(b: u64) {
   for y in 0..8 {
     let mut line = "".to_string();
@@ -794,7 +934,7 @@ pub struct BoardMeta {
   en_passant_bitboard: u64,
 
   halfmove_clock: u8,
-  hash: u64,
+  pub hash: u64,
 }
 
 /// Chess board
@@ -805,7 +945,8 @@ pub struct Board {
   bitboards: [u64; 14],
   pub white_to_move: bool,
   fullmove_counter: u32,
-  meta: BoardMeta,
+  pub meta: BoardMeta,
+  previous_hashes: Vec<u64>,
   // pub seen_squares: u64,
   // pub checked_squares: u64,
   // pub pinned_hv: u64,
@@ -814,6 +955,7 @@ pub struct Board {
 
 // pub const DOUBLE_CHECK: u64 = 0b10101010101010101010101101011001100;
 
+#[derive(Clone, Copy, Debug)]
 pub struct ChessMove(u16);
 
 pub const NO_PROMOTION: u16 = 0b00 << 12;
@@ -861,6 +1003,63 @@ impl ChessMove {
 
     s
   }
+  // Needs a board before the move was made
+  pub fn is_capture(&self, board: &Board) -> bool {
+    if self.move_type() == EN_PASSANT_MOVE {
+      return true;
+    }
+
+    let other_color = if board.white_to_move { 1 } else { 0 };
+    let other_piece = board.piece_on_with_color(self.to(), other_color);
+    // let other_piece = board.piece_on(self.to());
+
+    other_piece != EMPTY_SQUARE
+  }
+
+  fn evaluate_relative(&self, board: &Board) -> i32 {
+    const fn pv(piece: usize) -> i32 {
+      let c = piece % 2;
+      let piece = piece - c;
+      match piece {
+        PAWN => PAWN_VALUE,
+        KNIGHT => KNIGHT_VALUE,
+        BISHOP => BISHOP_VALUE,
+        ROOK => ROOK_VALUE,
+        QUEEN => QUEEN_VALUE,
+        _ => 0,
+      }
+    }
+
+    let color = if board.white_to_move { 0 } else { 1 };
+
+    match self.move_type() {
+      NORMAL_MOVE => {
+        let from_piece = board.piece_on_with_color(self.from(), color);
+        let to_piece = board.piece_on_with_color(self.to(), color ^ 1);
+
+        if to_piece == EMPTY_SQUARE {
+          0
+        } else {
+          pv(to_piece) - pv(from_piece)
+        }
+      }
+      PROMOTION_MOVE => {
+        let to_piece = board.piece_on_with_color(self.to(), color ^ 1);
+        let selected_piece = match self.promotion() {
+          KNIGHT_PROMOTION => KNIGHT,
+          BISHOP_PROMOTION => BISHOP,
+          ROOK_PROMOTION => ROOK,
+          QUEEN_PROMOTION => QUEEN,
+          _ => panic!(),
+        } + color;
+
+        pv(to_piece) + pv(selected_piece)
+      }
+      EN_PASSANT_MOVE => 10,
+      CASTLING_MOVE => 20,
+      _ => panic!(),
+    }
+  }
 }
 
 impl Board {
@@ -898,6 +1097,10 @@ impl Board {
   }
 
   pub fn from_fen(fen: &str) -> Self {
+    Self::from_fen_saved(fen, vec![])
+  }
+
+  pub fn from_fen_saved(fen: &str, previous_hashes: Vec<u64>) -> Self {
     let fields: Vec<&str> = fen.split(' ').collect();
     let ranks: Vec<&str> = fields[0].split('/').collect();
 
@@ -986,6 +1189,7 @@ impl Board {
         halfmove_clock,
         hash,
       },
+      previous_hashes,
       // seen_squares: 0,
       // checked_squares: 0,
       // pinned_hv: 0,
@@ -1514,23 +1718,31 @@ impl Board {
   }
 
   pub fn pseudo_legal_moves(&self) -> Vec<ChessMove> {
+    if self.meta.halfmove_clock >= 100 || self.previous_hashes.iter().filter(|h| **h == self.meta.hash).count() >= 2 {
+      return vec![];
+    }
+
     let color: usize = if self.white_to_move { 0 } else { 1 };
 
     // TODO: try changing to const. also try changing capacity
-    let mut chess_moves: Vec<ChessMove> = Vec::with_capacity(256);
+    let mut chess_moves: Vec<ChessMove> = Vec::with_capacity(50);
 
-    self.pawn_moves(color, &mut chess_moves);
-    self.knight_moves(color, &mut chess_moves);
-    self.bishop_moves(color, &mut chess_moves);
-    self.rook_moves(color, &mut chess_moves);
     self.queen_moves(color, &mut chess_moves);
-    self.king_moves(color, &mut chess_moves);
     self.castling_moves(color, &mut chess_moves);
+    self.knight_moves(color, &mut chess_moves);
+    self.rook_moves(color, &mut chess_moves);
+    self.bishop_moves(color, &mut chess_moves);
+    self.pawn_moves(color, &mut chess_moves);
+    self.king_moves(color, &mut chess_moves);
+
+    chess_moves.sort_by_cached_key(|m| -m.evaluate_relative(self));
 
     chess_moves
   }
 
   pub fn make_move(&mut self, chess_move: &ChessMove) {
+    self.previous_hashes.push(self.meta.hash);
+
     let color: usize = if self.white_to_move { 0 } else { 1 };
 
     let from = chess_move.from();
@@ -1921,6 +2133,61 @@ impl Board {
 
     format!("{piece_placement} {side_to_move} {castling_ability} {en_passant_target_square} {halfmove_clock} {fullmove_counter}")
   }
+
+  pub fn evaluate(&self) -> i32 {
+    // Assuming we aren't checked
+    if self.meta.halfmove_clock >= 100 || self.previous_hashes.iter().filter(|h| **h == self.meta.hash).count() >= 2 {
+      return 0;
+    }
+
+    let mut eval = 0;
+
+    for index in 0..64 {
+      let bb = 1 << index;
+      let i = 63 - index;
+
+      eval += (self.bitboards[WHITE + PAWN] & bb).count_ones() as i32 * (PAWN_VALUE + WHITE_PAWN_EVAL[i]);
+      eval -= (self.bitboards[BLACK + PAWN] & bb).count_ones() as i32 * (PAWN_VALUE + BLACK_PAWN_EVAL[i]);
+
+      eval += (self.bitboards[WHITE + KNIGHT] & bb).count_ones() as i32 * (KNIGHT_VALUE + WHITE_KNIGHT_EVAL[i]);
+      eval -= (self.bitboards[BLACK + KNIGHT] & bb).count_ones() as i32 * (KNIGHT_VALUE + BLACK_KNIGHT_EVAL[i]);
+
+      eval += (self.bitboards[WHITE + BISHOP] & bb).count_ones() as i32 * (BISHOP_VALUE + WHITE_BISHOP_EVAL[i]);
+      eval -= (self.bitboards[BLACK + BISHOP] & bb).count_ones() as i32 * (BISHOP_VALUE + BLACK_BISHOP_EVAL[i]);
+
+      eval += (self.bitboards[WHITE + ROOK] & bb).count_ones() as i32 * (ROOK_VALUE + WHITE_ROOK_EVAL[i]);
+      eval -= (self.bitboards[BLACK + ROOK] & bb).count_ones() as i32 * (ROOK_VALUE + BLACK_ROOK_EVAL[i]);
+
+      eval += (self.bitboards[WHITE + QUEEN] & bb).count_ones() as i32 * (QUEEN_VALUE + WHITE_QUEEN_EVAL[i]);
+      eval -= (self.bitboards[BLACK + QUEEN] & bb).count_ones() as i32 * (QUEEN_VALUE + BLACK_QUEEN_EVAL[i]);
+
+      eval += (self.bitboards[WHITE + KING] & bb).count_ones() as i32 * WHITE_KING_EVAL[i];
+      eval -= (self.bitboards[BLACK + KING] & bb).count_ones() as i32 * BLACK_KING_EVAL[i];
+    }
+
+    if self.meta.white_king_castle {
+      eval += POSSIBLE_CASTLING_VALUE;
+    }
+    if self.meta.white_queen_castle {
+      eval += POSSIBLE_CASTLING_VALUE;
+    }
+    if self.meta.black_king_castle {
+      eval -= POSSIBLE_CASTLING_VALUE;
+    }
+    if self.meta.black_queen_castle {
+      eval -= POSSIBLE_CASTLING_VALUE;
+    }
+
+    eval
+  }
+
+  pub fn evaluate_relative(&self) -> i32 {
+    if self.white_to_move {
+      self.evaluate()
+    } else {
+      -self.evaluate()
+    }
+  }
 }
 
 impl Default for Board {
@@ -1929,308 +2196,308 @@ impl Default for Board {
   }
 }
 
-// #[cfg(test)]
-// mod tests {
-//   use crate::bitboard::{bitboard_to_square, square_to_bitboard, Board, ChessMove};
+#[cfg(test)]
+mod tests {
+  use crate::bitboard::{bitboard_to_square, square_to_bitboard, Board, ChessMove, NORMAL_MOVE, NO_PROMOTION};
 
-//   #[test]
-//   fn fen_test() {
-//     // https://www.chessprogramming.org/Forsyth-Edwards_Notation
+  #[test]
+  fn fen_test() {
+    // https://www.chessprogramming.org/Forsyth-Edwards_Notation
 
-//     assert_eq!(
-//       "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-//       Board::default().to_fen()
-//     );
+    assert_eq!(
+      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      Board::default().to_fen()
+    );
 
-//     assert_eq!(
-//       "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
-//       Board::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1").to_fen()
-//     );
+    assert_eq!(
+      "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+      Board::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1").to_fen()
+    );
 
-//     assert_eq!(
-//       "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2",
-//       Board::from_fen("rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2").to_fen()
-//     );
+    assert_eq!(
+      "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2",
+      Board::from_fen("rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2").to_fen()
+    );
 
-//     assert_eq!(
-//       "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2",
-//       Board::from_fen("rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2").to_fen()
-//     );
+    assert_eq!(
+      "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2",
+      Board::from_fen("rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2").to_fen()
+    );
 
-//     assert_eq!(
-//       "r1bqk2r/2ppbppp/p1n2n2/1p2p3/4P3/1B3N2/PPPP1PPP/RNBQR1K1 b kq - 0 1",
-//       Board::from_fen("r1bqk2r/2ppbppp/p1n2n2/1p2p3/4P3/1B3N2/PPPP1PPP/RNBQR1K1 b kq - 0 1").to_fen()
-//     );
+    assert_eq!(
+      "r1bqk2r/2ppbppp/p1n2n2/1p2p3/4P3/1B3N2/PPPP1PPP/RNBQR1K1 b kq - 0 1",
+      Board::from_fen("r1bqk2r/2ppbppp/p1n2n2/1p2p3/4P3/1B3N2/PPPP1PPP/RNBQR1K1 b kq - 0 1").to_fen()
+    );
 
-//     assert_eq!(
-//       "rnbqkbnr/ppppp1pp/8/8/4PpP1/7N/PPPP1P1P/RNBQKB1R b KQkq e3 0 1",
-//       Board::from_fen("rnbqkbnr/ppppp1pp/8/8/4PpP1/7N/PPPP1P1P/RNBQKB1R b KQkq e3 0 1").to_fen()
-//     );
-//     assert_eq!("a1", bitboard_to_square(square_to_bitboard("a1")));
-//     assert_eq!("a3", bitboard_to_square(square_to_bitboard("a3")));
-//     assert_eq!("a8", bitboard_to_square(square_to_bitboard("a8")));
-//     assert_eq!("c1", bitboard_to_square(square_to_bitboard("c1")));
-//     assert_eq!("c3", bitboard_to_square(square_to_bitboard("c3")));
-//     assert_eq!("c8", bitboard_to_square(square_to_bitboard("c8")));
-//     assert_eq!("h1", bitboard_to_square(square_to_bitboard("h1")));
-//     assert_eq!("h3", bitboard_to_square(square_to_bitboard("h3")));
-//     assert_eq!("h8", bitboard_to_square(square_to_bitboard("h8")));
-//   }
+    assert_eq!(
+      "rnbqkbnr/ppppp1pp/8/8/4PpP1/7N/PPPP1P1P/RNBQKB1R b KQkq e3 0 1",
+      Board::from_fen("rnbqkbnr/ppppp1pp/8/8/4PpP1/7N/PPPP1P1P/RNBQKB1R b KQkq e3 0 1").to_fen()
+    );
+    assert_eq!("a1", bitboard_to_square(square_to_bitboard("a1")));
+    assert_eq!("a3", bitboard_to_square(square_to_bitboard("a3")));
+    assert_eq!("a8", bitboard_to_square(square_to_bitboard("a8")));
+    assert_eq!("c1", bitboard_to_square(square_to_bitboard("c1")));
+    assert_eq!("c3", bitboard_to_square(square_to_bitboard("c3")));
+    assert_eq!("c8", bitboard_to_square(square_to_bitboard("c8")));
+    assert_eq!("h1", bitboard_to_square(square_to_bitboard("h1")));
+    assert_eq!("h3", bitboard_to_square(square_to_bitboard("h3")));
+    assert_eq!("h8", bitboard_to_square(square_to_bitboard("h8")));
+  }
 
-//   #[test]
-//   fn move_generation_test() {
-//     let board = Board::from_fen("r3k2r/1b4bq/8/8/8/8/7B/R3K2R w KQkq - 0 1");
-//     let mut expected_moves = vec![
-//       "h2g1", "h2g3", "h2f4", "h2e5", "h2d6", "h2c7", "h2b8", "a1b1", "a1c1", "a1d1", "a1a2", "a1a3", "a1a4", "a1a5", "a1a6",
-//       "a1a7", "a1a8", "h1f1", "h1g1", "e1d1", "e1f1", "e1d2", "e1e2", "e1f2", "e1g1", "e1c1",
-//     ];
-//     let mut generated_moves: Vec<String> = board.legal_moves().iter().map(|m| m.to_fen()).collect();
+  #[test]
+  fn move_generation_test() {
+    let board = Board::from_fen("r3k2r/1b4bq/8/8/8/8/7B/R3K2R w KQkq - 0 1");
+    let mut expected_moves = vec![
+      "h2g1", "h2g3", "h2f4", "h2e5", "h2d6", "h2c7", "h2b8", "a1b1", "a1c1", "a1d1", "a1a2", "a1a3", "a1a4", "a1a5", "a1a6",
+      "a1a7", "a1a8", "h1f1", "h1g1", "e1d1", "e1f1", "e1d2", "e1e2", "e1f2", "e1g1", "e1c1",
+    ];
+    let mut generated_moves: Vec<String> = board.legal_moves().iter().map(|m| m.to_fen()).collect();
 
-//     expected_moves.sort();
-//     generated_moves.sort();
+    expected_moves.sort();
+    generated_moves.sort();
 
-//     assert_eq!(expected_moves, generated_moves);
+    assert_eq!(expected_moves, generated_moves);
 
-//     // --------------
+    // --------------
 
-//     let board = Board::from_fen("k4n2/6P1/8/2pP4/8/8/8/4K2R w K c6 0 1");
-//     let mut expected_moves = vec![
-//       "d5d6", "g7f8q", "g7f8r", "g7f8b", "g7f8n", "g7g8q", "g7g8r", "g7g8b", "g7g8n", "d5c6", "h1f1", "h1g1", "h1h2", "h1h3",
-//       "h1h4", "h1h5", "h1h6", "h1h7", "h1h8", "e1d1", "e1f1", "e1d2", "e1e2", "e1f2", "e1g1",
-//     ];
-//     let mut generated_moves: Vec<String> = board.legal_moves().iter().map(|m| m.to_fen()).collect();
+    let board = Board::from_fen("k4n2/6P1/8/2pP4/8/8/8/4K2R w K c6 0 1");
+    let mut expected_moves = vec![
+      "d5d6", "g7f8q", "g7f8r", "g7f8b", "g7f8n", "g7g8q", "g7g8r", "g7g8b", "g7g8n", "d5c6", "h1f1", "h1g1", "h1h2", "h1h3",
+      "h1h4", "h1h5", "h1h6", "h1h7", "h1h8", "e1d1", "e1f1", "e1d2", "e1e2", "e1f2", "e1g1",
+    ];
+    let mut generated_moves: Vec<String> = board.legal_moves().iter().map(|m| m.to_fen()).collect();
 
-//     expected_moves.sort();
-//     generated_moves.sort();
+    expected_moves.sort();
+    generated_moves.sort();
 
-//     assert_eq!(expected_moves, generated_moves);
+    assert_eq!(expected_moves, generated_moves);
 
-//     // --------------
+    // --------------
 
-//     let board = Board::default();
-//     let mut expected_moves = vec![
-//       "a2a3", "b2b3", "c2c3", "d2d3", "e2e3", "f2f3", "g2g3", "h2h3", "a2a4", "b2b4", "c2c4", "d2d4", "e2e4", "f2f4", "g2g4",
-//       "h2h4", "b1a3", "b1c3", "g1f3", "g1h3",
-//     ];
-//     let mut generated_moves: Vec<String> = board.legal_moves().iter().map(|m| m.to_fen()).collect();
+    let board = Board::default();
+    let mut expected_moves = vec![
+      "a2a3", "b2b3", "c2c3", "d2d3", "e2e3", "f2f3", "g2g3", "h2h3", "a2a4", "b2b4", "c2c4", "d2d4", "e2e4", "f2f4", "g2g4",
+      "h2h4", "b1a3", "b1c3", "g1f3", "g1h3",
+    ];
+    let mut generated_moves: Vec<String> = board.legal_moves().iter().map(|m| m.to_fen()).collect();
 
-//     expected_moves.sort();
-//     generated_moves.sort();
+    expected_moves.sort();
+    generated_moves.sort();
 
-//     assert_eq!(expected_moves, generated_moves);
+    assert_eq!(expected_moves, generated_moves);
 
-//     // --------------
+    // --------------
 
-//     let board = Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
-//     let mut expected_moves = vec![
-//       "a2a3", "b2b3", "g2g3", "d5d6", "a2a4", "g2g4", "g2h3", "d5e6", "c3b1", "c3d1", "c3a4", "c3b5", "e5d3", "e5c4", "e5g4",
-//       "e5c6", "e5g6", "e5d7", "e5f7", "d2c1", "d2e3", "d2f4", "d2g5", "d2h6", "e2d1", "e2f1", "e2d3", "e2c4", "e2b5", "e2a6",
-//       "a1b1", "a1c1", "a1d1", "h1f1", "h1g1", "f3d3", "f3e3", "f3g3", "f3h3", "f3f4", "f3g4", "f3f5", "f3h5", "f3f6", "e1d1",
-//       "e1f1", "e1g1", "e1c1",
-//     ];
-//     let mut generated_moves: Vec<String> = board.legal_moves().iter().map(|m| m.to_fen()).collect();
+    let board = Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
+    let mut expected_moves = vec![
+      "a2a3", "b2b3", "g2g3", "d5d6", "a2a4", "g2g4", "g2h3", "d5e6", "c3b1", "c3d1", "c3a4", "c3b5", "e5d3", "e5c4", "e5g4",
+      "e5c6", "e5g6", "e5d7", "e5f7", "d2c1", "d2e3", "d2f4", "d2g5", "d2h6", "e2d1", "e2f1", "e2d3", "e2c4", "e2b5", "e2a6",
+      "a1b1", "a1c1", "a1d1", "h1f1", "h1g1", "f3d3", "f3e3", "f3g3", "f3h3", "f3f4", "f3g4", "f3f5", "f3h5", "f3f6", "e1d1",
+      "e1f1", "e1g1", "e1c1",
+    ];
+    let mut generated_moves: Vec<String> = board.legal_moves().iter().map(|m| m.to_fen()).collect();
 
-//     expected_moves.sort();
-//     generated_moves.sort();
+    expected_moves.sort();
+    generated_moves.sort();
 
-//     assert_eq!(expected_moves, generated_moves);
-//   }
+    assert_eq!(expected_moves, generated_moves);
+  }
 
-//   #[test]
-//   fn perft_test() {
-//     // https://www.chessprogramming.org/Perft_Results
-//     fn test_fen<const N: usize>(fen: &str, depth_nodes: [u64; N]) {
-//       let mut board = Board::from_fen(fen);
+  #[test]
+  fn perft_test() {
+    // https://www.chessprogramming.org/Perft_Results
+    fn test_fen<const N: usize>(fen: &str, depth_nodes: [u64; N]) {
+      let mut board = Board::from_fen(fen);
 
-//       fn perft(depth: usize, board: &mut Board) -> u64 {
-//         // https://www.chessprogramming.org/Perft
+      fn perft(depth: usize, board: &mut Board) -> u64 {
+        // https://www.chessprogramming.org/Perft
 
-//         let mut nodes = 0;
+        let mut nodes = 0;
 
-//         if depth == 0 {
-//           return 1;
-//         }
+        if depth == 0 {
+          return 1;
+        }
 
-//         let color = if board.white_to_move { 0 } else { 1 };
+        let color = if board.white_to_move { 0 } else { 1 };
 
-//         for chess_move in board.pseudo_legal_moves() {
-//           let mut new_board = board.clone();
-//           new_board.make_move(&chess_move);
-//           if !new_board.in_check(color) {
-//             nodes += perft(depth - 1, &mut new_board);
-//           }
-//         }
+        for chess_move in board.pseudo_legal_moves() {
+          let mut new_board = board.clone();
+          new_board.make_move(&chess_move);
+          if !new_board.in_check(color) {
+            nodes += perft(depth - 1, &mut new_board);
+          }
+        }
 
-//         nodes
-//       }
+        nodes
+      }
 
-//       for (i, nodes) in depth_nodes.iter().enumerate() {
-//         assert_eq!(perft(i, &mut board), *nodes);
-//       }
-//     }
+      for (i, nodes) in depth_nodes.iter().enumerate() {
+        assert_eq!(perft(i, &mut board), *nodes);
+      }
+    }
 
-//     // Position 1
-//     test_fen::<7>(
-//       "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-//       [1, 20, 400, 8_902, 197_281, 4_865_609, 119_060_324],
-//     );
+    // Position 1
+    test_fen::<7>(
+      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      [1, 20, 400, 8_902, 197_281, 4_865_609, 119_060_324],
+    );
 
-//     // Position 2
-//     test_fen::<6>(
-//       "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
-//       [1, 48, 2_039, 97_862, 4_085_603, 193_690_690],
-//     );
+    // Position 2
+    test_fen::<6>(
+      "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+      [1, 48, 2_039, 97_862, 4_085_603, 193_690_690],
+    );
 
-//     // Position 3
-//     test_fen::<7>(
-//       "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
-//       [1, 14, 191, 2_812, 43_238, 674_624, 11_030_083],
-//     );
+    // Position 3
+    test_fen::<7>(
+      "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+      [1, 14, 191, 2_812, 43_238, 674_624, 11_030_083],
+    );
 
-//     // Position 4
-//     test_fen::<6>(
-//       "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
-//       [1, 6, 264, 9_467, 422_333, 15_833_292],
-//     );
+    // Position 4
+    test_fen::<6>(
+      "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+      [1, 6, 264, 9_467, 422_333, 15_833_292],
+    );
 
-//     // Position 4 mirrored
-//     test_fen::<6>(
-//       "r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1",
-//       [1, 6, 264, 9_467, 422_333, 15_833_292],
-//     );
+    // Position 4 mirrored
+    test_fen::<6>(
+      "r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1",
+      [1, 6, 264, 9_467, 422_333, 15_833_292],
+    );
 
-//     // Position 5
-//     test_fen::<6>(
-//       "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
-//       [1, 44, 1_486, 62_379, 2_103_487, 89_941_194],
-//     );
+    // Position 5
+    test_fen::<6>(
+      "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+      [1, 44, 1_486, 62_379, 2_103_487, 89_941_194],
+    );
 
-//     // Position 6
-//     test_fen::<6>(
-//       "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
-//       [1, 46, 2_079, 89_890, 3_894_594, 164_075_551],
-//     );
-//   }
+    // Position 6
+    test_fen::<6>(
+      "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+      [1, 46, 2_079, 89_890, 3_894_594, 164_075_551],
+    );
+  }
 
-//   #[test]
-//   fn hash_test() {
-//     fn test_hashing(fen: &str) {
-//       let board = Board::from_fen(fen);
-//       let expected_hash = board.meta.hash;
+  #[test]
+  fn hash_test() {
+    fn test_hashing(fen: &str) {
+      let board = Board::from_fen(fen);
+      let expected_hash = board.meta.hash;
 
-//       for chess_move in board.pseudo_legal_moves() {
-//         let mut new_board = board.clone();
-//         new_board.make_move(&chess_move);
-//         assert_ne!(new_board.meta.hash, expected_hash);
-//       }
-//     }
+      for chess_move in board.pseudo_legal_moves() {
+        let mut new_board = board.clone();
+        new_board.make_move(&chess_move);
+        assert_ne!(new_board.meta.hash, expected_hash);
+      }
+    }
 
-//     test_hashing("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-//     test_hashing("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
-//     test_hashing("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
-//     test_hashing("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
-//     test_hashing("r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1");
-//     test_hashing("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
-//     test_hashing("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
-//     test_hashing("r3k2r/1b4bq/8/8/8/8/7B/R3K2R w KQkq - 0 1");
+    test_hashing("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    test_hashing("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
+    test_hashing("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
+    test_hashing("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
+    test_hashing("r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1");
+    test_hashing("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
+    test_hashing("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
+    test_hashing("r3k2r/1b4bq/8/8/8/8/7B/R3K2R w KQkq - 0 1");
 
-//     let mut board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    let mut board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
-//     // board.make_move(&ChessMove::new(1, 18));
-//     // assert_eq!(
-//     //   board.meta.hash,
-//     //   Board::from_fen("rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 0 1")
-//     //     .meta
-//     //     .hash
-//     // );
+    board.make_move(&ChessMove::new(1, 18, NO_PROMOTION, NORMAL_MOVE));
+    assert_eq!(
+      board.meta.hash,
+      Board::from_fen("rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 0 1")
+        .meta
+        .hash
+    );
 
-//     // board.make_move(&Move::pawn_push(52, 44));
-//     // assert_eq!(
-//     //   board.meta.hash,
-//     //   Board::from_fen("rnbqkbnr/ppp1pppp/3p4/8/8/5N2/PPPPPPPP/RNBQKB1R w KQkq - 0 1")
-//     //     .meta
-//     //     .hash
-//     // );
+    board.make_move(&ChessMove::new(52, 44, NO_PROMOTION, NORMAL_MOVE));
+    assert_eq!(
+      board.meta.hash,
+      Board::from_fen("rnbqkbnr/ppp1pppp/3p4/8/8/5N2/PPPPPPPP/RNBQKB1R w KQkq - 0 1")
+        .meta
+        .hash
+    );
 
-//     // board.make_move(&Move::normal(0, 1));
-//     // assert_eq!(
-//     //   board.meta.hash,
-//     //   Board::from_fen("rnbqkbnr/ppp1pppp/3p4/8/8/5N2/PPPPPPPP/RNBQKBR1 b Qkq - 0 1")
-//     //     .meta
-//     //     .hash
-//     // );
+    board.make_move(&ChessMove::new(0, 1, NO_PROMOTION, NORMAL_MOVE));
+    assert_eq!(
+      board.meta.hash,
+      Board::from_fen("rnbqkbnr/ppp1pppp/3p4/8/8/5N2/PPPPPPPP/RNBQKBR1 b Qkq - 0 1")
+        .meta
+        .hash
+    );
 
-//     // board.make_move(&Move::double_pawn_push(54, 38));
-//     // assert_eq!(
-//     //   board.meta.hash,
-//     //   Board::from_fen("rnbqkbnr/p1p1pppp/3p4/1p6/8/5N2/PPPPPPPP/RNBQKBR1 w Qkq b6 0 1")
-//     //     .meta
-//     //     .hash
-//     // );
+    board.make_move(&ChessMove::new(54, 38, NO_PROMOTION, NORMAL_MOVE));
+    assert_eq!(
+      board.meta.hash,
+      Board::from_fen("rnbqkbnr/p1p1pppp/3p4/1p6/8/5N2/PPPPPPPP/RNBQKBR1 w Qkq b6 0 1")
+        .meta
+        .hash
+    );
 
-//     // board.make_move(&Move::double_pawn_push(13, 29);
-//     // assert_eq!(
-//     //   board.meta.hash,
-//     //   Board::from_fen("rnbqkbnr/p1p1pppp/3p4/1p6/2P5/5N2/PP1PPPPP/RNBQKBR1 b Qkq c3 0 1")
-//     //     .meta
-//     //     .hash
-//     // );
+    board.make_move(&ChessMove::new(13, 29, NO_PROMOTION, NORMAL_MOVE));
+    assert_eq!(
+      board.meta.hash,
+      Board::from_fen("rnbqkbnr/p1p1pppp/3p4/1p6/2P5/5N2/PP1PPPPP/RNBQKBR1 b Qkq c3 0 1")
+        .meta
+        .hash
+    );
 
-//     // board.make_move(&Move::normal(59, 52));
-//     // assert_eq!(
-//     //   board.meta.hash,
-//     //   Board::from_fen("rnbq1bnr/p1pkpppp/3p4/1p6/2P5/5N2/PP1PPPPP/RNBQKBR1 w Q - 0 1")
-//     //     .meta
-//     //     .hash
-//     // );
+    board.make_move(&ChessMove::new(59, 52, NO_PROMOTION, NORMAL_MOVE));
+    assert_eq!(
+      board.meta.hash,
+      Board::from_fen("rnbq1bnr/p1pkpppp/3p4/1p6/2P5/5N2/PP1PPPPP/RNBQKBR1 w Q - 0 1")
+        .meta
+        .hash
+    );
 
-//     // board.make_move(&Move::capture(
-//     //   square_to_index("c4"),
-//     //   square_to_index("b5"),
-//     //   -crate::board::PAWN,
-//     // ));
-//     // assert_eq!(
-//     //   board.meta.hash,
-//     //   Board::from_fen("rnbq1bnr/p1pkpppp/3p4/1P6/8/5N2/PP1PPPPP/RNBQKBR1 b Q - 0 1")
-//     //     .meta
-//     //     .hash
-//     // );
+    // board.make_move(&Move::capture(
+    //   square_to_index("c4"),
+    //   square_to_index("b5"),
+    //   -crate::board::PAWN,
+    // ));
+    // assert_eq!(
+    //   board.meta.hash,
+    //   Board::from_fen("rnbq1bnr/p1pkpppp/3p4/1P6/8/5N2/PP1PPPPP/RNBQKBR1 b Q - 0 1")
+    //     .meta
+    //     .hash
+    // );
 
-//     // board.make_move(&Move::pawn_push(square_to_index("g7"), square_to_index("g6")));
-//     // assert_eq!(
-//     //   board.meta.hash,
-//     //   Board::from_fen("rnbq1bnr/p1pkpp1p/3p2p1/1P6/8/5N2/PP1PPPPP/RNBQKBR1 w Q - 0 1")
-//     //     .meta
-//     //     .hash
-//     // );
+    // board.make_move(&Move::pawn_push(square_to_index("g7"), square_to_index("g6")));
+    // assert_eq!(
+    //   board.meta.hash,
+    //   Board::from_fen("rnbq1bnr/p1pkpp1p/3p2p1/1P6/8/5N2/PP1PPPPP/RNBQKBR1 w Q - 0 1")
+    //     .meta
+    //     .hash
+    // );
 
-//     // board.make_move(&Move::double_pawn_push(square_to_index("h2"), square_to_index("h4")));
-//     // assert_eq!(
-//     //   board.meta.hash,
-//     //   Board::from_fen("rnbq1bnr/p1pkpp1p/3p2p1/1P6/7P/5N2/PP1PPPP1/RNBQKBR1 b Q h3 0 1")
-//     //     .meta
-//     //     .hash
-//     // );
+    // board.make_move(&Move::double_pawn_push(square_to_index("h2"), square_to_index("h4")));
+    // assert_eq!(
+    //   board.meta.hash,
+    //   Board::from_fen("rnbq1bnr/p1pkpp1p/3p2p1/1P6/7P/5N2/PP1PPPP1/RNBQKBR1 b Q h3 0 1")
+    //     .meta
+    //     .hash
+    // );
 
-//     // board.make_move(&Move::double_pawn_push(square_to_index("c7"), square_to_index("c5")));
-//     // assert_eq!(
-//     //   board.meta.hash,
-//     //   Board::from_fen("rnbq1bnr/p2kpp1p/3p2p1/1Pp5/7P/5N2/PP1PPPP1/RNBQKBR1 w Q c6 0 1")
-//     //     .meta
-//     //     .hash
-//     // );
+    // board.make_move(&Move::double_pawn_push(square_to_index("c7"), square_to_index("c5")));
+    // assert_eq!(
+    //   board.meta.hash,
+    //   Board::from_fen("rnbq1bnr/p2kpp1p/3p2p1/1Pp5/7P/5N2/PP1PPPP1/RNBQKBR1 w Q c6 0 1")
+    //     .meta
+    //     .hash
+    // );
 
-//     // board.make_move(&Move::en_passant(
-//     //   square_to_index("b5"),
-//     //   square_to_index("c6"),
-//     //   square_to_index("c5"),
-//     //   -crate::board::PAWN,
-//     // ));
-//     // assert_eq!(
-//     //   board.meta.hash,
-//     //   Board::from_fen("rnbq1bnr/p2kpp1p/2Pp2p1/8/7P/5N2/PP1PPPP1/RNBQKBR1 b Q - 0 1")
-//     //     .meta
-//     //     .hash
-//     // );
-//   }
-// }
+    // board.make_move(&Move::en_passant(
+    //   square_to_index("b5"),
+    //   square_to_index("c6"),
+    //   square_to_index("c5"),
+    //   -crate::board::PAWN,
+    // ));
+    // assert_eq!(
+    //   board.meta.hash,
+    //   Board::from_fen("rnbq1bnr/p2kpp1p/2Pp2p1/8/7P/5N2/PP1PPPP1/RNBQKBR1 b Q - 0 1")
+    //     .meta
+    //     .hash
+    // );
+  }
+}
